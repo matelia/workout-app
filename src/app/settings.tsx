@@ -109,7 +109,7 @@ export default function FoodSettings() {
   }
 
   function restore() {
-    Alert.alert('Restore from a backup?', 'This replaces everything currently in the app with the backup. Pick the “Steady backup …” folder.', [
+    Alert.alert('Restore from a backup?', 'This replaces everything currently in the app with the backup. Pick the “Tend backup …” folder.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Restore',

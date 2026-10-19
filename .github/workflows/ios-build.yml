@@ -2,7 +2,7 @@
 # with your free Apple ID, so no Apple Developer account or secrets are needed.
 #
 # Run it: GitHub → Actions → "iOS build" → Run workflow (or push a tag like v1.0.0).
-# Download: the finished run's "Steady-ipa" artifact (a zip containing Steady.ipa).
+# Download: the finished run's "Tend-ipa" artifact (a zip containing Tend.ipa).
 
 name: iOS build
 
@@ -60,11 +60,11 @@ jobs:
           APP=$(ls -d build/Build/Products/Release-iphoneos/*.app | head -1)
           mkdir -p Payload
           cp -R "$APP" Payload/
-          zip -qry Steady.ipa Payload
-          ls -lh Steady.ipa
+          zip -qry Tend.ipa Payload
+          ls -lh Tend.ipa
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Steady-ipa
-          path: Steady.ipa
+          name: Tend-ipa
+          path: Tend.ipa
           retention-days: 30

@@ -17,7 +17,7 @@ const sqlString = (s: string) => `'${s.replace(/'/g, "''")}'`;
 export async function createBackup(db: SQLiteDatabase): Promise<string> {
   const target = await Directory.pickDirectoryAsync();
   const stamp = new Date().toTimeString().slice(0, 5).replace(':', '');
-  const name = `Steady backup ${todayStr()} ${stamp}`;
+  const name = `Tend backup ${todayStr()} ${stamp}`;
   const dest = new Directory(target, name);
   dest.create({ idempotent: true });
 
@@ -34,7 +34,7 @@ export async function createBackup(db: SQLiteDatabase): Promise<string> {
   const version = (await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version'))?.user_version ?? 0;
   const manifest = new File(dest, 'manifest.json');
   manifest.create({ overwrite: true });
-  manifest.write(JSON.stringify({ app: 'Steady', schema: version, created: new Date().toISOString() }, null, 2));
+  manifest.write(JSON.stringify({ app: 'Tend', schema: version, created: new Date().toISOString() }, null, 2));
   return name;
 }
 
@@ -42,7 +42,7 @@ export async function restoreBackup(db: SQLiteDatabase): Promise<Record<string, 
   const picked = await Directory.pickDirectoryAsync();
   const entries = picked.list();
   const backupDb = entries.find((e): e is File => e instanceof File && e.name === DB_NAME);
-  if (!backupDb) throw new Error('That folder isn’t a Steady backup (no steady.db inside). Pick the “Steady backup …” folder itself.');
+  if (!backupDb) throw new Error('That folder isn’t a Tend backup (no steady.db inside). Pick the “Tend backup …” folder itself.');
 
   // Bring the backup up to the current schema in a scratch database first.
   const sqliteDir = new Directory(Paths.document, 'SQLite');

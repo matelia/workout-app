@@ -18,7 +18,7 @@ const PAGES: Page[] = [
   {
     icon: 'figure.strengthtraining.traditional',
     kicker: 'Welcome',
-    title: 'Steady',
+    title: 'Tend',
     points: [
       'Workouts, food and self-care in one app.',
       'Everything is saved on this iPhone. Nothing needs an account.',
@@ -133,7 +133,7 @@ export default function Welcome() {
       </ScrollView>
 
       <View style={{ gap: space.sm }}>
-        <Button title={onFeatures ? 'Start using Steady' : i === 0 ? 'Take the tour' : 'Next'} onPress={() => (onFeatures ? close('done') : setI(i + 1))} />
+        <Button title={onFeatures ? 'Start using Tend' : i === 0 ? 'Take the tour' : 'Next'} onPress={() => (onFeatures ? close('done') : setI(i + 1))} />
         <View style={styles.bottomRow}>
           {i > 0 ? <Button title="Back" variant="secondary" style={{ flex: 1 }} onPress={() => setI(i - 1)} /> : null}
           {!onFeatures ? <Button title="Later" variant="secondary" style={{ flex: 1 }} onPress={() => close('later')} /> : null}

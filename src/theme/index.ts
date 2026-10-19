@@ -1,6 +1,6 @@
 import { DarkTheme, type Theme } from 'expo-router';
 
-// "Steady" design: always dark, near-black surfaces, lime as the one action color,
+// "Steady" design (the app is now called Tend): always dark, near-black surfaces, lime as the one action color,
 // coral as the second data color, condensed display type for titles and big numbers.
 
 const colors = {

@@ -276,3 +276,9 @@
 ## Batch: feature switches and first-run walkthrough (2026-10-19)
 - **Settings → Features:** switch off the Food, Mind or Progress tab, Coach, Weekly review, Progressive overload, PRs and streaks, Water and creatine, or Activity and sleep. Switched-off features are hidden and their reminders stop (care, photo, weekly review); no data is deleted. Stored as `feature_*` keys in `setting`, all on by default.
 - **Walkthrough** on first launch: five short pages (Welcome, Workouts, Food, Mind, Progress & coach), then a page to pick features. **Skip** ends it, **Later** shows it again next launch, and Settings → **Show the walkthrough** reopens it any time.
+
+## Name and icon: Tend (2026-10-19)
+- The app is now called **Tend**, with a new "Balance" icon: a lime circle resting on a line, on near-black. Splash screen and Android icons updated to match.
+- The bundle ID is unchanged (`com.matin.steady`), so updates install over the old app and keep its data.
+- Backups are now named "Tend backup …". Older "Steady backup" folders still restore (the database file inside is still `steady.db`).
+- The iOS build artifact is now **Tend-ipa** (`Tend.ipa`).

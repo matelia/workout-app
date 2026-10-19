@@ -1,4 +1,4 @@
-# Steady
+# Tend
 
 Personal iPhone app for workouts, food, and self-care. All data stays on the phone in SQLite.
 
