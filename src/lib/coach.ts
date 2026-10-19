@@ -15,6 +15,8 @@ import { listExercises } from '@/db/repos/exercises';
 import { addExercisesToRoutine, createRoutine, listRoutineExercises, updateTargets } from '@/db/repos/routines';
 import { addScheduled } from '@/db/repos/schedule';
 import { buildCoachContext } from '@/lib/coachContext';
+import { getSetting, setSetting } from '@/db/repos/settings';
+import { todayStr } from '@/lib/dates';
 import { syncWorkoutReminders } from '@/lib/notifications';
 import { serverPost } from '@/lib/snapshotClient';
 
@@ -53,15 +55,36 @@ export async function answerMessage(db: SQLiteDatabase, msg: CoachMessage, notif
   await setMessageStatus(db, msg.id, 'done');
   if (notify) {
     await Notifications.scheduleNotificationAsync({
-      content: { title: 'Coach replied', body: result.text.slice(0, 120), data: { url: '/coach' } },
+      content: {
+        title: msg.text.startsWith(WEEKLY_PREFIX) ? 'Your weekly review is ready' : 'Coach replied',
+        body: result.text.slice(0, 120),
+        data: { url: '/coach' },
+      },
       trigger: null,
     }).catch(() => {});
   }
   return 'ok';
 }
 
+export const WEEKLY_PREFIX = 'Weekly review:';
+
+/** On Sundays, queue one "review my week" request (answered now or when the laptop is back). */
+export async function maybeQueueWeeklyReview(db: SQLiteDatabase) {
+  const now = new Date();
+  if (now.getDay() !== 0) return;
+  const week = todayStr();
+  if ((await getSetting(db, 'weekly_review_day')) === week) return;
+  await setSetting(db, 'weekly_review_day', week);
+  await addMessage(db, {
+    role: 'user',
+    status: 'queued',
+    text: `${WEEKLY_PREFIX} summarize my last 7 days: workouts done vs planned, lifts that went up or stalled, PRs, nutrition vs targets (protein, calories, fiber, sodium), body weight trend. Then give me 3 specific things to focus on next week.`,
+  });
+}
+
 /** Answers queued questions (called with the snapshot queue: launch, foreground, every 2 min). */
 export async function processCoachQueue(db: SQLiteDatabase) {
+  await maybeQueueWeeklyReview(db);
   for (const m of await listUnanswered(db)) {
     if ((await answerMessage(db, m, true)) === 'unreachable') return;
   }

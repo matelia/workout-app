@@ -9,12 +9,13 @@ import { getTargets } from '@/db/repos/food';
 import { listCheckIns } from '@/db/repos/mind';
 import { latestMetrics, listMetrics } from '@/db/repos/bodyMetrics';
 import { liftHistory, loggedExercises, weeklyNutrition } from '@/db/repos/progress';
+import { listRecords } from '@/db/repos/records';
 import { getSetting } from '@/db/repos/settings';
 import { useDbQuery } from '@/hooks/useDbQuery';
 import { DATASET_LABELS, shareCsv, type Dataset } from '@/lib/csvExport';
 import { addDays, formatDate, todayStr } from '@/lib/dates';
 import { useMindLock } from '@/lib/mindLock';
-import { useColors } from '@/theme';
+import { space, useColors } from '@/theme';
 
 type LiftMetric = 'top' | 'e1rm' | 'volume';
 const METRIC_LABELS: Record<LiftMetric, string> = { top: 'Top set', e1rm: 'Est. 1RM', volume: 'Volume' };
@@ -37,6 +38,7 @@ export default function ProgressHome() {
   const [exporting, setExporting] = useState<Dataset | null>(null);
 
   const { data: lift } = useDbQuery(loadLift);
+  const { data: records } = useDbQuery((d) => listRecords(d, 10));
   const { data: nutrition } = useDbQuery((d) => weeklyNutrition(d, 8));
   const { data: targets } = useDbQuery(getTargets);
   const { data: metrics } = useDbQuery((d) => listMetrics(d, 120));
@@ -89,6 +91,25 @@ export default function ProgressHome() {
           </>
         ) : (
           <T variant="muted">Finish a workout with weights to see your lifts here.</T>
+        )}
+      </Card>
+
+      <Card>
+        <T variant="label">Personal records</T>
+        {records?.length ? (
+          records.slice(0, 10).map((r) => (
+            <View key={r.name} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.sm }}>
+              <T style={{ flex: 1 }} numberOfLines={1}>
+                {r.name}
+              </T>
+              <T style={{ color: c.accent, fontWeight: '700' }}>
+                {r.weight_lb} × {r.reps}
+              </T>
+              <T variant="muted">{formatDate(r.date, { month: 'short', day: 'numeric' })}</T>
+            </View>
+          ))
+        ) : (
+          <T variant="muted">Finish a few workouts to see your best sets here.</T>
         )}
       </Card>
 

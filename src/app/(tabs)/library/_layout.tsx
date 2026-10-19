@@ -6,6 +6,7 @@ export default function LibraryLayout() {
     <Stack screenOptions={stackScreenOptions}>
       <Stack.Screen name="index" options={{ title: 'Library', headerLargeTitle: true }} />
       <Stack.Screen name="[id]" options={{ title: '' }} />
+      <Stack.Screen name="import-review" options={{ title: 'Instagram workout' }} />
       <Stack.Screen name="edit" options={{ presentation: 'modal', title: 'Exercise' }} />
     </Stack>
   );

@@ -1,10 +1,12 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, View } from 'react-native';
 
 import { Button, Card, Field, Screen, T } from '@/components/ui';
 import { getTargets, saveTargets } from '@/db/repos/food';
 import { getSetting, setSetting } from '@/db/repos/settings';
+import { createBackup, restoreBackup } from '@/lib/backup';
+import { syncCareReminders, syncPhotoReminder, syncWorkoutReminders } from '@/lib/notifications';
 import { checkServer } from '@/lib/snapshotClient';
 import { space, useColors } from '@/theme';
 
@@ -31,9 +33,13 @@ export default function FoodSettings() {
   const [rest, setRest] = useState('90');
   const [stepsGoal, setStepsGoal] = useState('10000');
   const [moveGoal, setMoveGoal] = useState('500');
+  const [step, setStep] = useState('5');
+  const [water, setWater] = useState('100');
   const [serverUrl, setServerUrl] = useState('');
   const [serverToken, setServerToken] = useState('');
   const [saved, setSaved] = useState(false);
+  const [backupBusy, setBackupBusy] = useState<'backup' | 'restore' | null>(null);
+  const [backupMsg, setBackupMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [check, setCheck] = useState<{ busy: boolean; msg: string | null; ok?: boolean }>({ busy: false, msg: null });
 
   useEffect(() => {
@@ -51,6 +57,8 @@ export default function FoodSettings() {
     getSetting(db, 'rest_seconds').then((v) => v && setRest(v));
     getSetting(db, 'steps_goal').then((v) => v && setStepsGoal(v));
     getSetting(db, 'move_goal').then((v) => v && setMoveGoal(v));
+    getSetting(db, 'overload_step').then((v) => v && setStep(v));
+    getSetting(db, 'water_goal').then((v) => v && setWater(v));
     getSetting(db, 'snapshot_server_url').then((v) => setServerUrl(v ?? ''));
     getSetting(db, 'snapshot_server_token').then((v) => setServerToken(v ?? ''));
   }, [db]);
@@ -75,10 +83,51 @@ export default function FoodSettings() {
     await setSetting(db, 'rest_seconds', String(num(rest) ?? 90));
     await setSetting(db, 'steps_goal', String(num(stepsGoal) ?? 10000));
     await setSetting(db, 'move_goal', String(num(moveGoal) ?? 500));
+    await setSetting(db, 'overload_step', String(num(step) ?? 5));
+    await setSetting(db, 'water_goal', String(num(water) ?? 100));
     await setSetting(db, 'snapshot_server_url', serverUrl.trim().replace(/\/+$/, '') || null);
     await setSetting(db, 'snapshot_server_token', serverToken.trim() || null);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  }
+
+  async function backup() {
+    setBackupBusy('backup');
+    setBackupMsg(null);
+    try {
+      const name = await createBackup(db);
+      setBackupMsg({ ok: true, text: `Saved “${name}”.` });
+    } catch (e) {
+      setBackupMsg({ ok: false, text: `Backup failed: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setBackupBusy(null);
+    }
+  }
+
+  function restore() {
+    Alert.alert('Restore from a backup?', 'This replaces everything currently in the app with the backup. Pick the “Steady backup …” folder.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Restore',
+        style: 'destructive',
+        onPress: async () => {
+          setBackupBusy('restore');
+          setBackupMsg(null);
+          try {
+            const counts = await restoreBackup(db);
+            await syncWorkoutReminders(db);
+            await syncCareReminders(db);
+            await syncPhotoReminder(db);
+            const n = Object.values(counts).reduce((a, b) => a + b, 0);
+            setBackupMsg({ ok: true, text: `Restored ${n.toLocaleString()} records. Close and reopen the app to refresh every screen.` });
+          } catch (e) {
+            setBackupMsg({ ok: false, text: `Restore failed: ${e instanceof Error ? e.message : String(e)}` });
+          } finally {
+            setBackupBusy(null);
+          }
+        },
+      },
+    ]);
   }
 
   async function test() {
@@ -153,11 +202,26 @@ export default function FoodSettings() {
       <Card>
         <T variant="heading">Workouts and activity</T>
         {pair(['Rest timer (seconds)', rest, setRest], ['Steps goal', stepsGoal, setStepsGoal])}
-        <Field label="Move goal (active kcal)" value={moveGoal} onChangeText={setMoveGoal} keyboardType="number-pad" />
+        {pair(['Move goal (active kcal)', moveGoal, setMoveGoal], ['Progression step (lb)', step, setStep])}
+        <Field label="Water goal (fl oz)" value={water} onChangeText={setWater} keyboardType="number-pad" />
+        <T variant="muted">
+          Progression: when you hit every target set and rep, the next workout pre-fills this much more weight.
+        </T>
         <T variant="muted">Steps and active calories come from Apple Health in the installed app.</T>
       </Card>
 
       <Button title={saved ? 'Saved ✓' : 'Save'} onPress={save} />
+
+      <Card>
+        <T variant="heading">Backup</T>
+        <T variant="muted">
+          Saves everything (workouts, food, Mind, photos, voice memos) to a folder you pick, like iCloud Drive. Do this before
+          reinstalling, and now and then. Deleting the app deletes its data.
+        </T>
+        <Button title={backupBusy === 'backup' ? 'Backing up…' : 'Back up now'} variant="secondary" disabled={!!backupBusy} onPress={backup} />
+        <Button title={backupBusy === 'restore' ? 'Restoring…' : 'Restore from a backup'} variant="secondary" disabled={!!backupBusy} onPress={restore} />
+        {backupMsg ? <T style={{ color: backupMsg.ok ? c.success : c.danger }}>{backupMsg.text}</T> : null}
+      </Card>
     </Screen>
   );
 }

@@ -78,18 +78,41 @@ async function insertSets(
   count: number,
   targetReps: number | null,
   startAt = 1,
+  bump = 0,
 ) {
   for (let n = startAt; n < startAt + count; n++) {
     const p = await prefill(db, exerciseId, n, sessionId);
+    const progressed = bump > 0 && p?.weight_lb != null;
     await db.runAsync(
       'INSERT INTO set_log (session_id, exercise_id, set_number, reps, weight_lb, done) VALUES (?, ?, ?, ?, ?, 0)',
       sessionId,
       exerciseId,
       n,
-      p?.reps ?? targetReps,
-      p?.weight_lb ?? null,
+      // After a weight increase, aim for the target reps again.
+      progressed ? targetReps : (p?.reps ?? targetReps),
+      progressed ? p!.weight_lb! + bump : (p?.weight_lb ?? null),
     );
   }
+}
+
+/**
+ * Progressive overload: true when the last session of this exercise completed at least the target
+ * number of sets, every one at or above the target reps (with a weight).
+ */
+export async function hitAllTargets(db: SQLiteDatabase, exerciseId: number, excludeSession: number, targetSets: number, targetReps: number) {
+  const last = await db.getFirstAsync<{ session_id: number }>(
+    `SELECT l.session_id FROM set_log l JOIN workout_session s ON s.id = l.session_id
+     WHERE l.exercise_id = ? AND l.done = 1 AND l.session_id != ? ORDER BY s.date DESC, s.id DESC LIMIT 1`,
+    exerciseId,
+    excludeSession,
+  );
+  if (!last) return false;
+  const sets = await db.getAllAsync<{ reps: number | null; weight_lb: number | null }>(
+    'SELECT reps, weight_lb FROM set_log WHERE session_id = ? AND exercise_id = ? AND done = 1',
+    last.session_id,
+    exerciseId,
+  );
+  return sets.length >= targetSets && sets.every((x) => (x.reps ?? 0) >= targetReps && x.weight_lb != null);
 }
 
 export async function startSession(db: SQLiteDatabase, routineId: number | null) {
@@ -107,7 +130,11 @@ export async function startSession(db: SQLiteDatabase, routineId: number | null)
       'SELECT exercise_id, target_sets, target_reps FROM routine_exercise WHERE routine_id = ? ORDER BY sort_order, id',
       routineId,
     );
-    for (const it of items) await insertSets(db, sessionId, it.exercise_id, it.target_sets, it.target_reps);
+    const step = Number((await db.getFirstAsync<{ value: string }>("SELECT value FROM setting WHERE key = 'overload_step'"))?.value) || 5;
+    for (const it of items) {
+      const bump = (await hitAllTargets(db, it.exercise_id, sessionId, it.target_sets, it.target_reps)) ? step : 0;
+      await insertSets(db, sessionId, it.exercise_id, it.target_sets, it.target_reps, 1, bump);
+    }
   });
   return sessionId;
 }

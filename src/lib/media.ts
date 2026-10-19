@@ -7,7 +7,7 @@ export function storeMedia(sourceUri: string, folder: string, ext: string): stri
   const dir = new Directory(Paths.document, folder);
   dir.create({ idempotent: true, intermediates: true });
   const name = `${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext}`;
-  new File(sourceUri).copy(new File(dir, name));
+  new File(sourceUri).copySync(new File(dir, name));
   return `${folder}/${name}`;
 }
 

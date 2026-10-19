@@ -66,6 +66,7 @@ Check that it's up by opening http://localhost:8000/health in a browser on the l
 | `POST /recipe/nutrition` | JSON `{ingredients, servings}` | `{per_serving, matched, missing}` (model → grams, USDA → nutrition) |
 | `POST /chat` | JSON `{messages, context}` | `{reply}` (the coach; uses `OLLAMA_CHAT_MODEL`) |
 | `POST /plan` | JSON `{goals, context, exercises}` | `{summary, routines:[{name, weekday, exercises:[{name, sets, reps}]}]}` |
+| `POST /workout` | multipart `caption`, `library` (JSON list of names), optional `photos` | `{kind:"workout", title, summary, exercises:[{name, library_match, sets, reps, muscle_group, equipment, notes}]}` |
 | `POST /meal` | multipart `photo` | `{kind:"meal", items:[{name, grams, usda:{fdc_id, description, kcal_100g, …} \| null}]}` |
 
 Every route requires the `X-Token` header when `SNAPSHOT_TOKEN` is set.

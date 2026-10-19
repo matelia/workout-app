@@ -263,3 +263,12 @@
 - **Workouts tab:** today's routine at the top as a big Start card (or Done / Rest day), a Monday–Sunday week strip with today in lime, and a Coach row.
 - **Today: Activity card** with steps and Move rings, plus exercise minutes, from Apple Health (installed app only).
 - **Snapshot screen:** an offline banner, plus "ready" notifications for menu and recipe jobs.
+
+## Batch: overload, PRs, habits, sleep, backup, Instagram (2026-10-19)
+- **Progressive overload:** when you hit every target set × rep last time, the next session pre-fills +5 lb (change the step in Settings) at the target reps, and the logger shows "↑ +5 lb today".
+- **PRs and streaks:** a banner (with a haptic) when a completed set beats your best weight or estimated 1RM; a summary of the session's PRs when you finish. Today shows your weekly streak and workouts this week; Progress has a "Personal records" card.
+- **Weekly coach review:** every Sunday the coach writes a review of your week (training, food, habits, body) and sends a "Your weekly review is ready" notification. A Sunday 18:00 reminder opens the coach.
+- **Water and creatine on Today:** +8/+16/+24 oz buttons with undo, a daily goal (Settings), and a creatine tick with a streak. Migration `013` adds `habit_log`.
+- **Sleep from Apple Health:** last night's sleep shows next to the activity rings and pre-fills a new check-in (installed app only; Expo Go can't read Health).
+- **Backup and restore** (Settings): writes the database and all photos/videos into a folder you pick (iCloud Drive or On My iPhone). Restore brings an older backup up to the current schema first, then replaces everything.
+- **Instagram workouts** (Library → + → Import from Instagram): paste a public post or reel link. The app reads the caption and thumbnail, the laptop works out the exercises (matching them to your library), and you review them, then save them as exercises and optionally a routine. Add screenshots when the caption doesn't list the exercises. Works offline through the snapshot queue.

@@ -33,7 +33,7 @@ export function copyVideoIntoApp(sourceUri: string, originalName: string): strin
   const dir = new Directory(Paths.document, VIDEO_DIR);
   dir.create({ idempotent: true, intermediates: true });
   const safeName = `${Date.now()}-${originalName.replace(/[^\w.-]/g, '_')}`;
-  new File(sourceUri).copy(new File(dir, safeName));
+  new File(sourceUri).copySync(new File(dir, safeName));
   return `${VIDEO_DIR}/${safeName}`;
 }
 

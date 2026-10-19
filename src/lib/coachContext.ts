@@ -3,6 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { latestMetrics, listMetrics } from '@/db/repos/bodyMetrics';
 import { getGoals, goalsText } from '@/db/repos/coach';
 import { dayTotals, getTargets } from '@/db/repos/food';
+import { listRecords } from '@/db/repos/records';
 import { listRoutineExercises, listRoutines } from '@/db/repos/routines';
 import { listSchedule } from '@/db/repos/schedule';
 import { addDays, todayStr, WEEKDAYS_LONG } from '@/lib/dates';
@@ -54,6 +55,19 @@ export async function buildCoachContext(db: SQLiteDatabase): Promise<string> {
     return `${name}: ${first.date} best ${first.weight}x${first.reps} -> ${last.date} best ${last.weight}x${last.reps} (${new Set(sets.map((s) => s.date)).size} sessions)`;
   });
   lines.push(`\nTRAINING (last 6 weeks): ${sessions?.n ?? 0} workouts finished\n${liftLines.join('\n') || 'No logged sets yet.'}`);
+
+  // Records set in the last 7 days, and habits.
+  const recent = (await listRecords(db, 100)).filter((r) => r.date >= addDays(today, -7));
+  lines.push(`\nRECENT BEST SETS (last 7 days)\n${recent.map((r) => `${r.name} ${r.weight_lb}x${r.reps} on ${r.date}`).join('\n') || 'None'}`);
+  const habits = await db.getAllAsync<{ habit: string; days: number; total: number }>(
+    'SELECT habit, COUNT(DISTINCT date) AS days, SUM(amount) AS total FROM habit_log WHERE date >= ? GROUP BY habit',
+    addDays(today, -6),
+  );
+  const water = habits.find((h) => h.habit === 'water');
+  const creatine = habits.find((h) => h.habit === 'creatine');
+  lines.push(
+    `\nHABITS (last 7 days)\nwater: ${water ? Math.round(water.total / 7) : 0} fl oz/day average; creatine: taken ${creatine?.days ?? 0} of 7 days`,
+  );
 
   // Nutrition: last 14 days with food logged.
   const targets = await getTargets(db);

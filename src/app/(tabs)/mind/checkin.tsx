@@ -20,6 +20,7 @@ import { PickerSheet } from '@/components/pickers';
 import { getCheckIn, saveCheckIn } from '@/db/repos/mind';
 import { getSetting, setSetting } from '@/db/repos/settings';
 import { formatDate, formatDuration, nowLocalIso, parseDate, toDateStr, todayStr } from '@/lib/dates';
+import { lastNightSleepHours } from '@/lib/health';
 import { deleteMedia, extOf, mediaUri, storeMedia } from '@/lib/media';
 import { radius, space, useColors } from '@/theme';
 
@@ -54,6 +55,8 @@ export default function CheckInScreen() {
       setMood(x?.mood ?? null);
       setEnergy(x?.energy ?? null);
       setSleep(x?.sleep_hours ?? 7);
+      // New check-in for today: start from what Apple Health measured last night.
+      if (!x && date === todayStr()) lastNightSleepHours().then((h) => h && setSleep(h));
       setTags(x?.tags ? JSON.parse(x.tags) : []);
       setNote(x?.note ?? '');
       setPhoto(x?.photo_path ?? null);

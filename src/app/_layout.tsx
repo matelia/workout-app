@@ -16,7 +16,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { migrate } from '@/db/migrate';
 import { isHealthSyncEnabled, syncHealth } from '@/lib/health';
 import { MindLockProvider } from '@/lib/mindLock';
-import { syncCareReminders, syncPhotoReminder, syncWorkoutReminders } from '@/lib/notifications';
+import { syncCareReminders, syncPhotoReminder, syncWeeklyReviewReminder, syncWorkoutReminders } from '@/lib/notifications';
 import { processCoachQueue } from '@/lib/coach';
 import { processQueue, startQueueRetries } from '@/lib/snapshotClient';
 import { useNavTheme, stackScreenOptions } from '@/theme';
@@ -67,6 +67,7 @@ function Startup() {
     syncWorkoutReminders(db)
       .then(() => syncCareReminders(db))
       .then(() => syncPhotoReminder(db))
+      .then(() => syncWeeklyReviewReminder())
       .catch((e) => console.warn('Reminder sync failed', e));
   }, [db]);
 

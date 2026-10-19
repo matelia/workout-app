@@ -6,12 +6,15 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ActivityCard } from '@/components/ActivityCard';
 import { BigAction } from '@/components/BigAction';
 import { CareSlotRow } from '@/components/CareSlotRow';
+import { HabitsCard } from '@/components/HabitsCard';
 import { NutritionCheck } from '@/components/NutritionCheck';
 import { Rings } from '@/components/Rings';
 import { Button, Card, Screen, T } from '@/components/ui';
 import { careSlotsFor } from '@/db/repos/care';
 import { dayTotals, getTargets, mealForNow } from '@/db/repos/food';
-import { scheduleForDate } from '@/db/repos/schedule';
+import { getGoals } from '@/db/repos/coach';
+import { weeklyStreak } from '@/db/repos/records';
+import { listSchedule, scheduleForDate } from '@/db/repos/schedule';
 import { getActiveSession, sessionsOnDate, startSession } from '@/db/repos/sessions';
 import { useDbQuery } from '@/hooks/useDbQuery';
 import { formatDate, formatTime, todayStr } from '@/lib/dates';
@@ -28,7 +31,10 @@ async function loadToday(db: SQLiteDatabase, date: string) {
     getTargets(db),
     careSlotsFor(db, date, weekday),
   ]);
-  return { scheduled, sessions, active, totals, targets, care };
+  const goals = await getGoals(db);
+  const weeklyTarget = goals?.daysPerWeek ?? (await listSchedule(db)).filter((s) => s.weekday !== null).length;
+  const streak = await weeklyStreak(db, weeklyTarget || 1);
+  return { scheduled, sessions, active, totals, targets, care, streak };
 }
 
 export default function Today() {
@@ -93,6 +99,19 @@ export default function Today() {
             style={({ pressed }) => [styles.iconBtn, { backgroundColor: pressed ? c.cardPressed : c.card }]}>
             <SymbolView name="gearshape.fill" tintColor={c.accent} size={20} />
           </Pressable>
+        </View>
+      </View>
+
+      <View style={styles.stats}>
+        <View style={[styles.stat, { backgroundColor: c.card }]}>
+          <Text style={[styles.statNum, { color: data.streak.weeks ? c.accent : c.textMuted }]}>🔥 {data.streak.weeks}</Text>
+          <T variant="muted">week streak</T>
+        </View>
+        <View style={[styles.stat, { backgroundColor: c.card }]}>
+          <Text style={[styles.statNum, { color: c.text }]}>
+            {data.streak.thisWeek}/{data.streak.target}
+          </Text>
+          <T variant="muted">workouts this week</T>
         </View>
       </View>
 
@@ -166,6 +185,7 @@ export default function Today() {
       </View>
 
       <ActivityCard />
+      <HabitsCard />
 
       <View style={styles.quickRow}>
         {quick('camera', 'Snapshot', href('/food/snapshot', { date, meal }))}
@@ -193,6 +213,9 @@ const styles = StyleSheet.create({
   today: { fontFamily: fonts.display, fontSize: 52, lineHeight: 54 },
   date: { fontFamily: fonts.displayBold, fontSize: 18, letterSpacing: 0.5 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: 4 },
+  stats: { flexDirection: 'row', gap: space.sm },
+  stat: { flex: 1, borderRadius: radius.md, paddingVertical: space.sm, paddingHorizontal: space.md },
+  statNum: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30 },
   iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   doneCard: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   nutrition: { flexDirection: 'row', alignItems: 'center', gap: space.lg },

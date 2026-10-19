@@ -530,3 +530,80 @@ async def plan(body: PlanRequest, _: None = Depends(check_token)) -> dict[str, A
         if ex and 0 <= int(r.get("weekday", -1)) <= 6:
             routines.append({"name": str(r["name"]).strip()[:40], "weekday": int(r["weekday"]), "exercises": ex})
     return {"summary": out.get("summary", ""), "routines": routines}
+
+
+# ── Instagram workout imports ──
+
+WORKOUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "summary": {"type": "string"},
+        "exercises": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "library_match": {"type": ["string", "null"]},
+                    "sets": {"type": ["integer", "null"]},
+                    "reps": {"type": ["integer", "null"]},
+                    "muscle_group": {"type": ["string", "null"]},
+                    "equipment": {"type": ["string", "null"]},
+                    "notes": {"type": ["string", "null"]},
+                },
+                "required": ["name", "library_match", "sets", "reps", "muscle_group", "equipment", "notes"],
+            },
+        },
+    },
+    "required": ["title", "summary", "exercises"],
+}
+
+WORKOUT_PROMPT = """This is a workout post from Instagram: its caption, and possibly images/screenshots from the video.
+Work out what the workout is:
+- title: a short name for the workout (e.g. "Delt builder").
+- summary: one or two sentences on what it targets and how to do it.
+- exercises: every exercise, in order. name: a clear standard name (e.g. "Cable Lateral Raise").
+  library_match: if the exercise is the same movement as one in MY LIBRARY below, that library name exactly; else null.
+  sets/reps: as given, else a sensible suggestion. muscle_group: one of Chest, Back, Shoulders, Traps, Biceps, Triceps,
+  Forearms, Legs, Hamstrings, Glutes, Calves, Core, Full body, Cardio, Other. equipment: one of Barbell, Dumbbell, Cable,
+  Machine, Bodyweight, Band, Landmine, Other. notes: form cues from the post, short.
+If nothing in the caption or images describes exercises, return an empty exercises list. Reply with JSON only.
+
+CAPTION:
+"""
+
+
+@app.post("/workout")
+async def workout(
+    caption: str = Form(default=""),
+    library: str = Form(default="[]"),
+    photos: list[UploadFile] | None = File(default=None),
+    _: None = Depends(check_token),
+) -> dict[str, Any]:
+    try:
+        names = [str(n) for n in json.loads(library)][:300]
+    except json.JSONDecodeError:
+        names = []
+    prompt = WORKOUT_PROMPT + (caption.strip()[:4000] or "(no caption)") + "\n\nMY LIBRARY:\n" + "\n".join(names)
+    images = [await read_photo(p) for p in (photos or [])[:8]]
+    if images:
+        out = await ask_images(prompt, images, WORKOUT_SCHEMA)
+    else:
+        raw = await ollama_chat([{"role": "user", "content": prompt}], schema=WORKOUT_SCHEMA)
+        try:
+            out = json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=502, detail="Model did not return valid JSON") from e
+    allowed = {n.lower(): n for n in names}
+    exercises = []
+    for e in out.get("exercises", []):
+        name = str(e.get("name", "")).strip()
+        if not name:
+            continue
+        match = e.get("library_match")
+        e["library_match"] = allowed.get(str(match).lower()) if match else None
+        e["name"] = name
+        exercises.append(e)
+    log.info("workout -> %s (%d exercises)", out.get("title"), len(exercises))
+    return {"kind": "workout", "title": out.get("title", "Instagram workout"), "summary": out.get("summary", ""), "exercises": exercises}

@@ -6,14 +6,14 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Rings } from '@/components/Rings';
 import { Card, T } from '@/components/ui';
 import { getSetting } from '@/db/repos/settings';
-import { healthAvailable, todayActivity, type Activity } from '@/lib/health';
+import { healthAvailable, lastNightSleepHours, todayActivity, type Activity } from '@/lib/health';
 import { fonts, space, useColors } from '@/theme';
 
 /** Steps + active calories rings from Apple Health. Hidden where Health isn't available (Expo Go). */
 export function ActivityCard() {
   const db = useSQLiteContext();
   const c = useColors();
-  const [data, setData] = useState<{ a: Activity; steps: number; move: number } | null>(null);
+  const [data, setData] = useState<{ a: Activity; steps: number; move: number; sleep: number | null } | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -23,13 +23,13 @@ export function ActivityCard() {
         if (!a) return;
         const steps = Number(await getSetting(db, 'steps_goal')) || 10000;
         const move = Number(await getSetting(db, 'move_goal')) || 500;
-        setData({ a, steps, move });
+        setData({ a, steps, move, sleep: await lastNightSleepHours() });
       })();
     }, [db]),
   );
 
   if (!healthAvailable || !data) return null;
-  const { a, steps, move } = data;
+  const { a, steps, move, sleep } = data;
   return (
     <Card style={styles.row}>
       <Rings
@@ -47,7 +47,9 @@ export function ActivityCard() {
         <Text style={[styles.big, { color: c.accent3 }]}>
           {a.steps.toLocaleString()} <Text style={[styles.unit, { color: c.textMuted }]}>/ {steps.toLocaleString()} STEPS</Text>
         </Text>
-        <T variant="muted">{a.exerciseMin} min exercise</T>
+        <T variant="muted">
+          {a.exerciseMin} min exercise{sleep !== null ? ` · ${sleep} h sleep` : ''}
+        </T>
       </View>
     </Card>
   );

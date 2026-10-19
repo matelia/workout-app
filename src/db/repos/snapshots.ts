@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export type SnapshotKind = 'label' | 'meal' | 'menu' | 'recipe';
+export type SnapshotKind = 'label' | 'meal' | 'menu' | 'recipe' | 'workout';
 export type SnapshotStatus = 'queued' | 'processing' | 'needs_review' | 'done';
 
 export type SnapshotJob = {
@@ -26,15 +26,21 @@ export function jobPhotos(job: Pick<SnapshotJob, 'photo_path' | 'extra_photos'>)
 export function reviewRoute(job: Pick<SnapshotJob, 'id' | 'kind'>): string {
   if (job.kind === 'menu') return `/food/restaurants/review?id=${job.id}`;
   if (job.kind === 'recipe') return `/food/cookbook/review?id=${job.id}`;
+  if (job.kind === 'workout') return `/library/import-review?id=${job.id}`;
   return `/food/review/${job.id}`;
 }
 
 /** Screenshot job (restaurant menu or recipe) with one or more photos. */
-export async function createScreenshotJob(db: SQLiteDatabase, paths: string[], kind: 'menu' | 'recipe', context: object = {}) {
+export async function createScreenshotJob(
+  db: SQLiteDatabase,
+  paths: string[],
+  kind: 'menu' | 'recipe' | 'workout',
+  context: object = {},
+) {
   return (
     await db.runAsync(
       "INSERT INTO snapshot_job (photo_path, kind, status, extra_photos, context) VALUES (?, ?, 'queued', ?, ?)",
-      paths[0],
+      paths[0] ?? '',
       kind,
       paths.length > 1 ? JSON.stringify(paths.slice(1)) : null,
       JSON.stringify(context),

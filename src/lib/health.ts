@@ -106,3 +106,38 @@ export async function todayActivity(): Promise<Activity | null> {
     return null;
   }
 }
+
+/**
+ * Hours asleep last night (6 pm yesterday → now), from Apple Watch / iPhone sleep data.
+ * Overlapping samples from several sources are merged so time isn't double-counted.
+ */
+export async function lastNightSleepHours(): Promise<number | null> {
+  const HealthKit = loadHealthKit();
+  if (!HealthKit) return null;
+  try {
+    const id = 'HKCategoryTypeIdentifierSleepAnalysis' as const;
+    await HealthKit.requestAuthorization({ toRead: [id] });
+    const start = new Date();
+    start.setDate(start.getDate() - 1);
+    start.setHours(18, 0, 0, 0);
+    const samples = await HealthKit.queryCategorySamples(id, { limit: -1, filter: { date: { startDate: start } } });
+    // 1 asleep (unspecified), 3 core, 4 deep, 5 REM; 0 in bed and 2 awake don't count.
+    const spans = samples
+      .filter((s) => [1, 3, 4, 5].includes(Number(s.value)))
+      .map((s) => [new Date(s.startDate).getTime(), new Date(s.endDate).getTime()] as const)
+      .sort((a, b) => a[0] - b[0]);
+    let total = 0;
+    let cur: [number, number] | null = null;
+    for (const [a, b] of spans) {
+      if (cur && a <= cur[1]) cur[1] = Math.max(cur[1], b);
+      else {
+        if (cur) total += cur[1] - cur[0];
+        cur = [a, b];
+      }
+    }
+    if (cur) total += cur[1] - cur[0];
+    return total ? Math.round((total / 3_600_000) * 4) / 4 : null;
+  } catch {
+    return null;
+  }
+}

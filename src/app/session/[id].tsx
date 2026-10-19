@@ -7,6 +7,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Card, T } from '@/components/ui';
+import { checkSetPR, sessionPRs, type PR } from '@/db/repos/records';
 import { getSetting, setSetting } from '@/db/repos/settings';
 import {
   addSet,
@@ -24,7 +25,7 @@ import {
 import { useDbQuery } from '@/hooks/useDbQuery';
 import { useRestTimer } from '@/hooks/useRestTimer';
 import { formatDate, formatDuration } from '@/lib/dates';
-import { radius, space, useColors } from '@/theme';
+import { fonts, radius, space, useColors } from '@/theme';
 
 const DEFAULT_REST = 90;
 
@@ -36,6 +37,12 @@ export default function SessionScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const rest = useRestTimer();
+  const [pr, setPr] = useState<PR | null>(null);
+  useEffect(() => {
+    if (!pr) return;
+    const t = setTimeout(() => setPr(null), 4000);
+    return () => clearTimeout(t);
+  }, [pr]);
 
   const { data: session } = useDbQuery((d) => getSession(d, sessionId), id);
   const { data: loaded, reload } = useDbQuery((d) => listSessionExercises(d, sessionId), id);
@@ -65,6 +72,13 @@ export default function SessionScreen() {
     await updateSet(db, s.id, reps, weight);
     await setDone(db, s.id, done);
     if (done && !finished) rest.start(restSeconds);
+    if (done) {
+      const record = await checkSetPR(db, s.id);
+      if (record) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setPr(record);
+      }
+    }
   }
 
   function adjustRest(delta: number) {
@@ -89,7 +103,13 @@ export default function SessionScreen() {
         onPress: async () => {
           rest.skip();
           await finishSession(db, sessionId);
+          const prs = await sessionPRs(db, sessionId);
           router.back();
+          if (prs.length)
+            Alert.alert(
+              `🏆 ${prs.length} new PR${prs.length === 1 ? '' : 's'}`,
+              prs.map((p) => `${p.exercise}: ${p.weight} lb × ${p.reps}${p.kind === 'e1rm' ? ' (best set)' : ''}`).join('\n'),
+            );
         },
       },
     ]);
@@ -135,7 +155,7 @@ export default function SessionScreen() {
         {exercises.map((ex) => (
           <Card key={ex.exercise_id}>
             <T variant="heading">{ex.name}</T>
-            <LastTime exerciseId={ex.exercise_id} sessionId={sessionId} />
+            <LastTime exerciseId={ex.exercise_id} sessionId={sessionId} current={ex.sets[0]?.weight_lb ?? null} />
             <View style={styles.headRow}>
               <T variant="label" style={styles.colSet}>Set</T>
               <T variant="label" style={styles.colNum}>lb</T>
@@ -188,6 +208,15 @@ export default function SessionScreen() {
         ) : null}
       </ScrollView>
 
+      {pr ? (
+        <View style={[styles.prBanner, { backgroundColor: c.accent, top: space.md }]}>
+          <Text style={[styles.prTitle, { color: c.accentText }]}>🏆 NEW PR</Text>
+          <Text style={{ color: c.accentText, fontWeight: '600' }}>
+            {pr.exercise}: {pr.weight} lb × {pr.reps}
+            {pr.kind === 'e1rm' ? ' · best set ever' : ' · heaviest ever'}
+          </Text>
+        </View>
+      ) : null}
       {rest.active ? (
         <View style={[styles.restBar, { backgroundColor: c.card, borderColor: c.border, paddingBottom: space.md + insets.bottom }]}>
           <Pressable hitSlop={8} onPress={() => adjustRest(-15)} style={[styles.restBtn, { backgroundColor: c.bg }]}>
@@ -219,14 +248,20 @@ function Elapsed({ start }: { start: string }) {
   return <T variant="muted">Elapsed {formatDuration(seconds)}</T>;
 }
 
-function LastTime({ exerciseId, sessionId }: { exerciseId: number; sessionId: number }) {
+function LastTime({ exerciseId, sessionId, current }: { exerciseId: number; sessionId: number; current: number | null }) {
+  const c = useColors();
   const { data } = useDbQuery((d) => lastTimeSummary(d, exerciseId, sessionId), `${exerciseId}-${sessionId}`);
-  if (!data) return <T variant="muted">First time — enter your weight.</T>;
+  if (!data) return <T variant="muted">First time. Enter your weight.</T>;
   const sets = data.sets.map((s) => `${s.weight_lb ?? 'BW'}×${s.reps ?? '–'}`).join(', ');
+  const lastTop = Math.max(0, ...data.sets.map((s) => s.weight_lb ?? 0));
+  const up = current !== null && lastTop > 0 && current > lastTop ? current - lastTop : 0;
   return (
-    <T variant="muted">
-      Last ({formatDate(data.date, { month: 'short', day: 'numeric' })}): {sets}
-    </T>
+    <View style={{ gap: 2 }}>
+      <T variant="muted">
+        Last ({formatDate(data.date, { month: 'short', day: 'numeric' })}): {sets}
+      </T>
+      {up ? <T style={{ color: c.accent, fontWeight: '600' }}>↑ +{up} lb today: you hit every target last time</T> : null}
+    </View>
   );
 }
 
@@ -306,6 +341,8 @@ function SetRow({
 }
 
 const styles = StyleSheet.create({
+  prBanner: { position: 'absolute', left: space.lg, right: space.lg, borderRadius: radius.md, padding: space.md, gap: 2 },
+  prTitle: { fontFamily: fonts.display, fontSize: 24 },
   content: { padding: space.lg, gap: space.lg },
   headRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.xs },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

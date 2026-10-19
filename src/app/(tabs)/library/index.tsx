@@ -1,17 +1,23 @@
 import { useRouter } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView } from 'expo-symbols';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, SectionList, StyleSheet, View } from 'react-native';
+import { ActionSheetIOS, ActivityIndicator, Alert, Pressable, ScrollView, SectionList, StyleSheet, View } from 'react-native';
 
 import { Fab } from '@/components/Fab';
 import { Chip, Empty, Field, Row, T } from '@/components/ui';
 import { EQUIPMENT } from '@/data/exerciseInfo';
 import { listExercises, MUSCLE_GROUPS } from '@/db/repos/exercises';
+import { createScreenshotJob, getJob } from '@/db/repos/snapshots';
 import { useDbQuery } from '@/hooks/useDbQuery';
+import { readReel } from '@/lib/instagram';
+import { pickScreenshots } from '@/lib/media';
+import { processJob } from '@/lib/snapshotClient';
 import { radius, space, useColors } from '@/theme';
 
 export default function LibraryIndex() {
   const router = useRouter();
+  const db = useSQLiteContext();
   const c = useColors();
   const [query, setQuery] = useState('');
   const [muscle, setMuscle] = useState<string | null>(null);
@@ -19,6 +25,60 @@ export default function LibraryIndex() {
   // Muscle groups the user has opened. While searching, every matching group is open.
   const [open, setOpen] = useState<Set<string>>(new Set());
   const { data: exercises } = useDbQuery(listExercises);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  function add() {
+    ActionSheetIOS.showActionSheetWithOptions(
+      { options: ['New exercise', 'Import from Instagram', 'Cancel'], cancelButtonIndex: 2 },
+      (i) => {
+        if (i === 0) router.push('/library/edit');
+        if (i === 1) importInstagram();
+      },
+    );
+  }
+
+  function importInstagram() {
+    Alert.prompt('Paste an Instagram link', 'A public post or reel with a workout.', async (text) => {
+      const url = text?.trim();
+      if (!url) return;
+      setBusy('Reading the post…');
+      let reel;
+      try {
+        reel = await readReel(url);
+      } catch (e) {
+        setBusy(null);
+        Alert.alert('Couldn’t read that post', e instanceof Error ? e.message : String(e));
+        return;
+      }
+      setBusy(null);
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: reel.caption ? `“${reel.caption.slice(0, 120)}${reel.caption.length > 120 ? '…' : ''}”` : 'No caption on this post',
+          message: 'If the caption doesn’t list the exercises, add a few screenshots of the video.',
+          options: ['Read the caption', 'Add screenshots too', 'Cancel'],
+          cancelButtonIndex: 2,
+        },
+        async (k) => {
+          if (k === 2) return;
+          const shots = k === 1 ? await pickScreenshots('screenshots') : [];
+          const paths = [reel.thumbnail, ...shots].filter((p): p is string => !!p);
+          const jobId = await createScreenshotJob(db, paths, 'workout', { url: reel.url, caption: reel.caption, author: reel.author });
+          setBusy('Working out the exercises on the laptop… this can take a minute.');
+          const job = await getJob(db, jobId);
+          const result = job ? await processJob(db, job) : 'failed';
+          setBusy(null);
+          if (result === 'ok') router.push(`/library/import-review?id=${jobId}`);
+          else
+            Alert.alert(
+              result === 'unreachable' ? 'Laptop is offline' : 'Couldn’t read that workout',
+              result === 'unreachable'
+                ? 'Saved. It’ll be read when the laptop is back, and you’ll get a notification.'
+                : 'It’s in Food → Snapshot queue, where you can retry or delete it.',
+            );
+        },
+      );
+    });
+  }
 
   const sections = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -112,13 +172,22 @@ export default function LibraryIndex() {
           ) : undefined
         }
       />
-      <Fab label="Add exercise" onPress={() => router.push('/library/edit')} />
+      {busy ? (
+        <View style={[styles.busy, { backgroundColor: c.card }]}>
+          <ActivityIndicator />
+          <T variant="muted" style={{ flex: 1 }}>
+            {busy}
+          </T>
+        </View>
+      ) : null}
+      <Fab label="Add exercise" onPress={add} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   list: { padding: space.lg, paddingBottom: 120 },
+  busy: { position: 'absolute', left: space.lg, right: 96, bottom: 28, flexDirection: 'row', gap: space.sm, alignItems: 'center', padding: space.md, borderRadius: 14 },
   chips: { gap: space.sm, paddingRight: space.lg },
   sectionHeader: {
     flexDirection: 'row',

@@ -2,6 +2,7 @@ import { File, Directory, Paths } from 'expo-file-system';
 import * as Notifications from 'expo-notifications';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { listExercises } from '@/db/repos/exercises';
 import { pantryKinds } from '@/db/repos/pantry';
 import { listPendingNutrition, setRecipeNutrition } from '@/db/repos/recipes';
 import { getSetting } from '@/db/repos/settings';
@@ -52,7 +53,7 @@ export function storePhoto(uri: string): string {
   const dir = new Directory(Paths.document, PHOTO_DIR);
   dir.create({ idempotent: true, intermediates: true });
   const name = `${Date.now()}.jpg`;
-  new File(uri).copy(new File(dir, name));
+  new File(uri).copySync(new File(dir, name));
   return `${PHOTO_DIR}/${name}`;
 }
 
@@ -101,7 +102,15 @@ export async function processJob(db: SQLiteDatabase, job: SnapshotJob): Promise<
   try {
     const form = new FormData();
     // React Native's FormData accepts { uri, name, type } file parts.
-    if (job.kind === 'menu' || job.kind === 'recipe') {
+    if (job.kind === 'workout') {
+      // Instagram import: caption + your library names, plus the thumbnail/screenshots if any.
+      const ctx = job.context ? (JSON.parse(job.context) as { caption?: string }) : {};
+      form.append('caption', ctx.caption ?? '');
+      form.append('library', JSON.stringify((await listExercises(db)).map((e) => e.name)));
+      jobPhotos(job)
+        .filter(Boolean)
+        .forEach((p, i) => form.append('photos', { uri: photoUri(p), name: `photo${i}.jpg`, type: 'image/jpeg' } as unknown as Blob));
+    } else if (job.kind === 'menu' || job.kind === 'recipe') {
       jobPhotos(job).forEach((p, i) =>
         form.append('photos', { uri: photoUri(p), name: `photo${i}.jpg`, type: 'image/jpeg' } as unknown as Blob),
       );
@@ -152,7 +161,14 @@ export async function processQueue(db: SQLiteDatabase) {
       if (result === 'ok') {
         await Notifications.scheduleNotificationAsync({
           content: {
-            title: job.kind === 'recipe' ? 'Recipe ready' : job.kind === 'menu' ? 'Menu items ready' : 'Snapshot ready to review',
+            title:
+              job.kind === 'recipe'
+                ? 'Recipe ready'
+                : job.kind === 'menu'
+                  ? 'Menu items ready'
+                  : job.kind === 'workout'
+                    ? 'Instagram workout ready'
+                    : 'Snapshot ready to review',
             body: 'Tap to check it.',
             data: { url: reviewRoute(job) },
           },

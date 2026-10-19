@@ -11,7 +11,7 @@ import { formatDate } from '@/lib/dates';
 import { photoUri, processQueue } from '@/lib/snapshotClient';
 import { radius, useColors } from '@/theme';
 
-const KIND_LABEL = { label: 'Label', meal: 'Meal', menu: 'Restaurant menu', recipe: 'Recipe' };
+const KIND_LABEL = { label: 'Label', meal: 'Meal', menu: 'Restaurant menu', recipe: 'Recipe', workout: 'Instagram workout' };
 const STATUS_LABEL = { queued: 'Waiting for laptop', processing: 'Processing…', needs_review: 'Ready to review', done: 'Done' };
 
 export default function SnapshotQueue() {

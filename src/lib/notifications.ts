@@ -143,6 +143,17 @@ export async function syncPhotoReminder(db: SQLiteDatabase) {
   });
 }
 
+// ── Weekly review (Sunday 6 pm) ──
+export async function syncWeeklyReviewReminder() {
+  await cancelByPrefix('weekly-review');
+  if (!(await ensureNotificationPermission())) return;
+  await Notifications.scheduleNotificationAsync({
+    identifier: 'weekly-review',
+    content: { title: 'Weekly review', body: 'Open the coach to see how your week went.', data: { url: '/coach' } },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.WEEKLY, weekday: 1, hour: 18, minute: 0 },
+  });
+}
+
 // ── Rest timer ──
 
 export async function scheduleRestDone(seconds: number) {
