@@ -7,6 +7,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Card, T } from '@/components/ui';
+import { useFeatures } from '@/lib/features';
 import { checkSetPR, sessionPRs, type PR } from '@/db/repos/records';
 import { getSetting, setSetting } from '@/db/repos/settings';
 import {
@@ -33,6 +34,7 @@ export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const sessionId = Number(id);
   const db = useSQLiteContext();
+  const { flags } = useFeatures();
   const router = useRouter();
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -72,7 +74,7 @@ export default function SessionScreen() {
     await updateSet(db, s.id, reps, weight);
     await setDone(db, s.id, done);
     if (done && !finished) rest.start(restSeconds);
-    if (done) {
+    if (done && flags.prs) {
       const record = await checkSetPR(db, s.id);
       if (record) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -103,7 +105,7 @@ export default function SessionScreen() {
         onPress: async () => {
           rest.skip();
           await finishSession(db, sessionId);
-          const prs = await sessionPRs(db, sessionId);
+          const prs = flags.prs ? await sessionPRs(db, sessionId) : [];
           router.back();
           if (prs.length)
             Alert.alert(

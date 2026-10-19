@@ -18,6 +18,7 @@ import { listSchedule, scheduleForDate } from '@/db/repos/schedule';
 import { getActiveSession, sessionsOnDate, startSession } from '@/db/repos/sessions';
 import { useDbQuery } from '@/hooks/useDbQuery';
 import { formatDate, formatTime, todayStr } from '@/lib/dates';
+import { useFeatures } from '@/lib/features';
 import { href } from '@/lib/href';
 import { fonts, radius, space, useColors } from '@/theme';
 
@@ -41,6 +42,7 @@ export default function Today() {
   const db = useSQLiteContext();
   const router = useRouter();
   const c = useColors();
+  const { flags } = useFeatures();
   const date = todayStr();
   const { data, reload } = useDbQuery((d) => loadToday(d, date), date);
 
@@ -87,12 +89,14 @@ export default function Today() {
           <Text style={[styles.date, { color: c.textMuted }]}>
             {formatDate(date, { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase()}
           </Text>
+          {flags.coach ? (
           <Pressable
             accessibilityLabel="Coach"
             onPress={() => router.push('/coach')}
             style={({ pressed }) => [styles.iconBtn, { backgroundColor: pressed ? c.cardPressed : c.card }]}>
             <SymbolView name="bubble.left.and.text.bubble.right.fill" tintColor={c.accent} size={18} />
           </Pressable>
+          ) : null}
           <Pressable
             accessibilityLabel="Settings"
             onPress={() => router.push('/settings')}
@@ -102,6 +106,7 @@ export default function Today() {
         </View>
       </View>
 
+      {flags.prs ? (
       <View style={styles.stats}>
         <View style={[styles.stat, { backgroundColor: c.card }]}>
           <Text style={[styles.statNum, { color: data.streak.weeks ? c.accent : c.textMuted }]}>🔥 {data.streak.weeks}</Text>
@@ -114,6 +119,7 @@ export default function Today() {
           <T variant="muted">workouts this week</T>
         </View>
       </View>
+      ) : null}
 
       {active && !activeIsScheduled ? (
         <BigAction
@@ -154,6 +160,8 @@ export default function Today() {
         );
       })}
 
+      {flags.food ? (
+      <>
       <Pressable onPress={() => router.push('/food')}>
         <Card style={styles.nutrition}>
           <Rings
@@ -183,18 +191,22 @@ export default function Today() {
         )}
         <NutritionCheck totals={totals} targets={targets} compact />
       </View>
+      </>
+      ) : null}
 
-      <ActivityCard />
-      <HabitsCard />
+      {flags.activity ? <ActivityCard /> : null}
+      {flags.habits ? <HabitsCard /> : null}
 
-      <View style={styles.quickRow}>
-        {quick('camera', 'Snapshot', href('/food/snapshot', { date, meal }))}
-        {quick('barcode.viewfinder', 'Barcode', href('/food/scan', { target: 'log', date, meal }))}
-        {quick('fork.knife', 'Saved', href('/food/meals', { date, meal }))}
-        {quick('face.smiling', 'Check-in', '/mind/checkin' as never)}
-      </View>
+      {flags.food || flags.mind ? (
+        <View style={styles.quickRow}>
+          {flags.food ? quick('camera', 'Snapshot', href('/food/snapshot', { date, meal })) : null}
+          {flags.food ? quick('barcode.viewfinder', 'Barcode', href('/food/scan', { target: 'log', date, meal })) : null}
+          {flags.food ? quick('fork.knife', 'Saved', href('/food/meals', { date, meal })) : null}
+          {flags.mind ? quick('face.smiling', 'Check-in', '/mind/checkin' as never) : null}
+        </View>
+      ) : null}
 
-      {data.care.length ? (
+      {flags.mind && data.care.length ? (
         <Card>
           <T variant="label">Care</T>
           {dueCare.length === 0 ? <T variant="muted">All done for today.</T> : null}

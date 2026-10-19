@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getPhotoReminder } from '@/db/repos/bodyPhotos';
+import { isFeatureOn } from '@/lib/featureStore';
 
 // All reminders are local notifications. They are rebuilt from the database by the sync
 // functions below, so the DB is the single source of truth (no drift after edits).
@@ -87,6 +88,7 @@ export async function syncWorkoutReminders(db: SQLiteDatabase) {
 // Only the user's neutral notification_label ever reaches the lock screen.
 export async function syncCareReminders(db: SQLiteDatabase) {
   await cancelByPrefix('care-');
+  if (!(await isFeatureOn(db, 'mind'))) return;
   const items = await db.getAllAsync<{
     id: number;
     schedule_times: string;
@@ -129,6 +131,7 @@ export async function syncCareReminders(db: SQLiteDatabase) {
 // ── Monthly body-photo reminder ──
 export async function syncPhotoReminder(db: SQLiteDatabase) {
   await cancelByPrefix('photo-');
+  if (!(await isFeatureOn(db, 'progress'))) return;
   const r = await getPhotoReminder(db);
   if (!r.enabled || !(await ensureNotificationPermission())) return;
   const { hour, minute } = hm(r.time);
@@ -144,8 +147,9 @@ export async function syncPhotoReminder(db: SQLiteDatabase) {
 }
 
 // ── Weekly review (Sunday 6 pm) ──
-export async function syncWeeklyReviewReminder() {
+export async function syncWeeklyReviewReminder(db: SQLiteDatabase) {
   await cancelByPrefix('weekly-review');
+  if (!(await isFeatureOn(db, 'coach')) || !(await isFeatureOn(db, 'weeklyReview'))) return;
   if (!(await ensureNotificationPermission())) return;
   await Notifications.scheduleNotificationAsync({
     identifier: 'weekly-review',
@@ -168,4 +172,12 @@ export async function scheduleRestDone(seconds: number) {
 
 export async function cancelRestDone() {
   await Notifications.cancelScheduledNotificationAsync(REST_ID).catch(() => {});
+}
+
+/** Rebuilds every reminder from the database (launch, restore, feature changes). */
+export async function syncAllReminders(db: SQLiteDatabase) {
+  await syncWorkoutReminders(db);
+  await syncCareReminders(db);
+  await syncPhotoReminder(db);
+  await syncWeeklyReviewReminder(db);
 }

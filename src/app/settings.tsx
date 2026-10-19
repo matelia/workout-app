@@ -1,12 +1,14 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { ActivityIndicator, Alert, Linking, Switch, View } from 'react-native';
 
 import { Button, Card, Field, Screen, T } from '@/components/ui';
 import { getTargets, saveTargets } from '@/db/repos/food';
 import { getSetting, setSetting } from '@/db/repos/settings';
 import { createBackup, restoreBackup } from '@/lib/backup';
-import { syncCareReminders, syncPhotoReminder, syncWorkoutReminders } from '@/lib/notifications';
+import { FEATURES, type FeatureKey, useFeatures } from '@/lib/features';
+import { syncAllReminders } from '@/lib/notifications';
 import { checkServer } from '@/lib/snapshotClient';
 import { space, useColors } from '@/theme';
 
@@ -18,6 +20,8 @@ const num = (s: string) => {
 export default function FoodSettings() {
   const db = useSQLiteContext();
   const c = useColors();
+  const router = useRouter();
+  const { flags, setFeature, reload: reloadFeatures } = useFeatures();
   const [kcal, setKcal] = useState('');
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
@@ -115,9 +119,8 @@ export default function FoodSettings() {
           setBackupMsg(null);
           try {
             const counts = await restoreBackup(db);
-            await syncWorkoutReminders(db);
-            await syncCareReminders(db);
-            await syncPhotoReminder(db);
+            await reloadFeatures();
+            await syncAllReminders(db);
             const n = Object.values(counts).reduce((a, b) => a + b, 0);
             setBackupMsg({ ok: true, text: `Restored ${n.toLocaleString()} records. Close and reopen the app to refresh every screen.` });
           } catch (e) {
@@ -137,6 +140,13 @@ export default function FoodSettings() {
     setCheck({ busy: false, msg: r.message, ok: r.ok });
   }
 
+  async function toggle(key: FeatureKey, on: boolean) {
+    await setFeature(key, on);
+    syncAllReminders(db).catch(() => {});
+  }
+
+  const groups = [...new Set(FEATURES.map((f) => f.group))];
+
   const pair = (a: [string, string, (s: string) => void], b: [string, string, (s: string) => void]) => (
     <View style={{ flexDirection: 'row', gap: space.sm }}>
       {[a, b].map(([label, value, set]) => (
@@ -149,6 +159,26 @@ export default function FoodSettings() {
 
   return (
     <Screen>
+      <Card>
+        <T variant="heading">Features</T>
+        <T variant="muted">Switch off what you don’t use. It’s hidden and its reminders stop; nothing is deleted.</T>
+        {groups.map((g) => (
+          <View key={g} style={{ gap: space.sm }}>
+            <T variant="label">{g}</T>
+            {FEATURES.filter((f) => f.group === g).map((f) => (
+              <View key={f.key} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+                <View style={{ flex: 1 }}>
+                  <T>{f.title}</T>
+                  <T variant="muted">{f.detail}</T>
+                </View>
+                <Switch value={flags[f.key]} onValueChange={(v) => toggle(f.key, v)} trackColor={{ true: c.accent }} />
+              </View>
+            ))}
+          </View>
+        ))}
+        <Button title="Show the walkthrough" variant="secondary" onPress={() => router.push('/welcome')} />
+      </Card>
+
       <Card>
         <T variant="heading">Daily targets</T>
         {pair(['Calories (kcal)', kcal, setKcal], ['Protein (g)', protein, setProtein])}

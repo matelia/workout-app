@@ -2,6 +2,7 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { Tabs } from 'expo-router/js-tabs';
 import type { ColorValue } from 'react-native';
 
+import { useFeatures } from '@/lib/features';
 import { useColors } from '@/theme';
 
 // JS tabs rather than native tabs: the native iOS tab bar collapses a 6th tab into "More".
@@ -13,6 +14,7 @@ function icon(name: SFSymbol) {
 
 export default function TabsLayout() {
   const c = useColors();
+  const { flags } = useFeatures();
   return (
     <Tabs
       screenOptions={{
@@ -24,7 +26,7 @@ export default function TabsLayout() {
         headerShown: false,
       }}>
       <Tabs.Screen name="index" options={{ title: 'Today', tabBarIcon: icon('sun.max') }} />
-      <Tabs.Screen name="food" options={{ title: 'Food', headerShown: false, tabBarIcon: icon('fork.knife') }} />
+      <Tabs.Screen name="food" options={{ title: 'Food', headerShown: false, href: flags.food ? undefined : null, tabBarIcon: icon('fork.knife') }} />
       <Tabs.Screen
         name="workouts"
         options={{ title: 'Workouts', headerShown: false, tabBarIcon: icon('dumbbell') }}
@@ -35,11 +37,11 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="mind"
-        options={{ title: 'Mind', headerShown: false, tabBarIcon: icon('brain.head.profile') }}
+        options={{ title: 'Mind', headerShown: false, href: flags.mind ? undefined : null, tabBarIcon: icon('brain.head.profile') }}
       />
       <Tabs.Screen
         name="progress"
-        options={{ title: 'Progress', headerShown: false, tabBarIcon: icon('chart.line.uptrend.xyaxis') }}
+        options={{ title: 'Progress', headerShown: false, href: flags.progress ? undefined : null, tabBarIcon: icon('chart.line.uptrend.xyaxis') }}
       />
     </Tabs>
   );

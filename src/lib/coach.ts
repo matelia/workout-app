@@ -19,6 +19,7 @@ import { getSetting, setSetting } from '@/db/repos/settings';
 import { todayStr } from '@/lib/dates';
 import { syncWorkoutReminders } from '@/lib/notifications';
 import { serverPost } from '@/lib/snapshotClient';
+import { isFeatureOn } from '@/lib/featureStore';
 
 /**
  * Sends one user message to the laptop and stores the reply. Returns 'unreachable' when the
@@ -72,6 +73,7 @@ export const WEEKLY_PREFIX = 'Weekly review:';
 export async function maybeQueueWeeklyReview(db: SQLiteDatabase) {
   const now = new Date();
   if (now.getDay() !== 0) return;
+  if (!(await isFeatureOn(db, 'coach')) || !(await isFeatureOn(db, 'weeklyReview'))) return;
   const week = todayStr();
   if ((await getSetting(db, 'weekly_review_day')) === week) return;
   await setSetting(db, 'weekly_review_day', week);
@@ -84,6 +86,7 @@ export async function maybeQueueWeeklyReview(db: SQLiteDatabase) {
 
 /** Answers queued questions (called with the snapshot queue: launch, foreground, every 2 min). */
 export async function processCoachQueue(db: SQLiteDatabase) {
+  if (!(await isFeatureOn(db, 'coach'))) return;
   await maybeQueueWeeklyReview(db);
   for (const m of await listUnanswered(db)) {
     if ((await answerMessage(db, m, true)) === 'unreachable') return;

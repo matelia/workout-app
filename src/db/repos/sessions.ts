@@ -130,9 +130,11 @@ export async function startSession(db: SQLiteDatabase, routineId: number | null)
       'SELECT exercise_id, target_sets, target_reps FROM routine_exercise WHERE routine_id = ? ORDER BY sort_order, id',
       routineId,
     );
-    const step = Number((await db.getFirstAsync<{ value: string }>("SELECT value FROM setting WHERE key = 'overload_step'"))?.value) || 5;
+    // Progressive overload is optional (Settings → Features); it is on unless switched off.
+    const overload = (await db.getFirstAsync<{ value: string }>("SELECT value FROM setting WHERE key = 'feature_overload'"))?.value !== '0';
+    const step = overload ? Number((await db.getFirstAsync<{ value: string }>("SELECT value FROM setting WHERE key = 'overload_step'"))?.value) || 5 : 0;
     for (const it of items) {
-      const bump = (await hitAllTargets(db, it.exercise_id, sessionId, it.target_sets, it.target_reps)) ? step : 0;
+      const bump = step && (await hitAllTargets(db, it.exercise_id, sessionId, it.target_sets, it.target_reps)) ? step : 0;
       await insertSets(db, sessionId, it.exercise_id, it.target_sets, it.target_reps, 1, bump);
     }
   });

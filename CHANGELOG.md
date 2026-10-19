@@ -272,3 +272,7 @@
 - **Sleep from Apple Health:** last night's sleep shows next to the activity rings and pre-fills a new check-in (installed app only; Expo Go can't read Health).
 - **Backup and restore** (Settings): writes the database and all photos/videos into a folder you pick (iCloud Drive or On My iPhone). Restore brings an older backup up to the current schema first, then replaces everything.
 - **Instagram workouts** (Library → + → Import from Instagram): paste a public post or reel link. The app reads the caption and thumbnail, the laptop works out the exercises (matching them to your library), and you review them, then save them as exercises and optionally a routine. Add screenshots when the caption doesn't list the exercises. Works offline through the snapshot queue.
+
+## Batch: feature switches and first-run walkthrough (2026-10-19)
+- **Settings → Features:** switch off the Food, Mind or Progress tab, Coach, Weekly review, Progressive overload, PRs and streaks, Water and creatine, or Activity and sleep. Switched-off features are hidden and their reminders stop (care, photo, weekly review); no data is deleted. Stored as `feature_*` keys in `setting`, all on by default.
+- **Walkthrough** on first launch: five short pages (Welcome, Workouts, Food, Mind, Progress & coach), then a page to pick features. **Skip** ends it, **Later** shows it again next launch, and Settings → **Show the walkthrough** reopens it any time.
