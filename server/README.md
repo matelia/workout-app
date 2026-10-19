@@ -61,6 +61,11 @@ Check that it's up by opening http://localhost:8000/health in a browser on the l
 | --- | --- | --- |
 | `GET /health` | — | `{ok, model, model_ready}` |
 | `POST /label` | multipart `photo` | `{kind:"label", food:{name, serving_g, kcal_100g, protein_100g, carbs_100g, fat_100g}}` |
+| `POST /menu` | multipart `photos` (1–8 screenshots) | `{kind:"menu", items:[{name, serving_g, kcal, protein_g, …, sodium_mg}]}` |
+| `POST /recipe` | multipart `photos` (1–8 screenshots) | `{kind:"recipe", recipe:{name, servings, ingredients, steps, nutrition_per_serving, estimated}}` |
+| `POST /recipe/nutrition` | JSON `{ingredients, servings}` | `{per_serving, matched, missing}` (model → grams, USDA → nutrition) |
+| `POST /chat` | JSON `{messages, context}` | `{reply}` (the coach; uses `OLLAMA_CHAT_MODEL`) |
+| `POST /plan` | JSON `{goals, context, exercises}` | `{summary, routines:[{name, weekday, exercises:[{name, sets, reps}]}]}` |
 | `POST /meal` | multipart `photo` | `{kind:"meal", items:[{name, grams, usda:{fdc_id, description, kcal_100g, …} \| null}]}` |
 
 Every route requires the `X-Token` header when `SNAPSHOT_TOKEN` is set.

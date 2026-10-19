@@ -17,7 +17,7 @@ export type PantryItem = {
   place_type: PlaceType;
 };
 
-export type PlaceType = 'grocery' | 'restaurant';
+export type PlaceType = 'grocery' | 'restaurant' | 'recipe';
 
 /** Pantry item joined with its food (name + nutrition) and how often it's been logged. */
 export type PantryProduct = PantryItem & Pick<Food, 'name' | 'barcode'> & Per100 & { times_logged: number };

@@ -1,9 +1,9 @@
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 
-import { Field, Row, T } from '@/components/ui';
+import { Button, Field, Row, T } from '@/components/ui';
 import { listExercises } from '@/db/repos/exercises';
 import { useDbQuery } from '@/hooks/useDbQuery';
 import { space, useColors } from '@/theme';
@@ -42,23 +42,8 @@ export function ExercisePicker({
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <Stack.Screen
-        options={{
-          headerLeft: () => (
-            <Pressable hitSlop={12} onPress={() => router.back()}>
-              <Text style={{ color: c.accent, fontSize: 17 }}>Cancel</Text>
-            </Pressable>
-          ),
-          headerRight: () => (
-            <Pressable hitSlop={12} onPress={confirm} disabled={!selected.length}>
-              <Text style={{ color: selected.length ? c.accent : c.textMuted, fontSize: 17, fontWeight: '600' }}>
-                Add{selected.length ? ` (${selected.length})` : ''}
-              </Text>
-            </Pressable>
-          ),
-        }}
-      />
       <FlatList
+        style={{ flex: 1 }}
         data={filtered}
         keyExtractor={(e) => String(e.id)}
         keyboardShouldPersistTaps="handled"
@@ -87,11 +72,19 @@ export function ExercisePicker({
           );
         }}
       />
+      <View style={[styles.footer, { backgroundColor: c.bg, borderTopColor: c.border }]}>
+        <Button
+          title={selected.length ? `Add ${selected.length} exercise${selected.length === 1 ? '' : 's'}` : 'Tap exercises to select'}
+          onPress={confirm}
+          disabled={!selected.length}
+        />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  footer: { padding: space.lg, paddingBottom: space.xl, borderTopWidth: StyleSheet.hairlineWidth },
   list: { padding: space.lg, gap: space.sm },
   badge: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 });

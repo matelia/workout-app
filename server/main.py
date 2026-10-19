@@ -24,11 +24,14 @@ from typing import Any
 import httpx
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from pydantic import BaseModel
 
 load_dotenv()
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5vl:7b")
+# The coach can reuse the vision model (one download, less RAM) or use a separate text model.
+OLLAMA_CHAT_MODEL = os.getenv("OLLAMA_CHAT_MODEL") or OLLAMA_MODEL
 USDA_API_KEY = os.getenv("USDA_API_KEY") or "DEMO_KEY"
 SNAPSHOT_TOKEN = os.getenv("SNAPSHOT_TOKEN", "")
 MAX_PHOTO_BYTES = 15 * 1024 * 1024
@@ -99,15 +102,36 @@ Do NOT give calories or any nutrition numbers. Reply with JSON only."""
 
 
 async def ask_vision(prompt: str, image: bytes, schema: dict[str, Any]) -> dict[str, Any]:
-    payload = {
-        "model": OLLAMA_MODEL,
+    return await ask_images(prompt, [image], schema)
+
+
+async def ask_images(prompt: str, images: list[bytes], schema: dict[str, Any]) -> dict[str, Any]:
+    out = await ollama_chat(
+        [{"role": "user", "content": prompt, "images": [base64.b64encode(i).decode() for i in images]}],
+        schema=schema,
+    )
+    try:
+        return json.loads(out)
+    except json.JSONDecodeError as e:
+        log.warning("Model returned non-JSON: %s", out[:500])
+        raise HTTPException(status_code=502, detail="Model did not return valid JSON") from e
+
+
+async def ollama_chat(
+    messages: list[dict[str, Any]],
+    schema: dict[str, Any] | None = None,
+    model: str | None = None,
+    temperature: float = 0,
+) -> str:
+    """One non-streaming Ollama chat call; returns the reply text (JSON text when a schema is given)."""
+    payload: dict[str, Any] = {
+        "model": model or OLLAMA_MODEL,
         "stream": False,
-        "format": schema,
-        "options": {"temperature": 0},
-        "messages": [
-            {"role": "user", "content": prompt, "images": [base64.b64encode(image).decode()]},
-        ],
+        "options": {"temperature": temperature},
+        "messages": messages,
     }
+    if schema is not None:
+        payload["format"] = schema
     async with httpx.AsyncClient(timeout=300) as client:
         try:
             r = await client.post(f"{OLLAMA_URL}/api/chat", json=payload)
@@ -115,12 +139,7 @@ async def ask_vision(prompt: str, image: bytes, schema: dict[str, Any]) -> dict[
             raise HTTPException(status_code=503, detail=f"Ollama not reachable at {OLLAMA_URL}: {e}") from e
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail=f"Ollama error {r.status_code}: {r.text[:300]}")
-    content = r.json().get("message", {}).get("content", "")
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError as e:
-        log.warning("Model returned non-JSON: %s", content[:500])
-        raise HTTPException(status_code=502, detail="Model did not return valid JSON") from e
+    return r.json().get("message", {}).get("content", "")
 
 
 # ── USDA ──
@@ -259,3 +278,255 @@ async def meal(
             items.append({"name": name, "grams": round(float(grams)), "usda": match})
     log.info("meal -> %s", [(i["name"], i["grams"], bool(i["usda"])) for i in items])
     return {"kind": "meal", "items": items}
+
+
+# ── Nutrition tables: restaurant menus ──
+
+NUTRITION_PROPS = {
+    "kcal": {"type": ["number", "null"]},
+    "protein_g": {"type": ["number", "null"]},
+    "carbs_g": {"type": ["number", "null"]},
+    "fat_g": {"type": ["number", "null"]},
+    "fiber_g": {"type": ["number", "null"]},
+    "sugar_g": {"type": ["number", "null"]},
+    "sat_fat_g": {"type": ["number", "null"]},
+    "sodium_mg": {"type": ["number", "null"]},
+}
+
+MENU_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}, "serving_g": {"type": ["number", "null"]}, **NUTRITION_PROPS},
+                "required": ["name", *NUTRITION_PROPS.keys()],
+            },
+        }
+    },
+    "required": ["items"],
+}
+
+MENU_PROMPT = """These are screenshots of a restaurant's nutrition information (a table or item pages).
+List every menu item you can read, one entry per item, with its values for ONE item exactly as printed.
+Use null for anything not shown. serving_g is the item weight in grams if listed. Do not estimate.
+Reply with JSON only."""
+
+
+async def read_photos(photos: list[UploadFile]) -> list[bytes]:
+    if not photos or len(photos) > 8:
+        raise HTTPException(status_code=400, detail="Send 1 to 8 photos")
+    return [await read_photo(p) for p in photos]
+
+
+@app.post("/menu")
+async def menu(photos: list[UploadFile] = File(...), _: None = Depends(check_token)) -> dict[str, Any]:
+    out = await ask_images(MENU_PROMPT, await read_photos(photos), MENU_SCHEMA)
+    items = [i for i in out.get("items", []) if str(i.get("name", "")).strip() and isinstance(i.get("kcal"), (int, float))]
+    log.info("menu -> %d items", len(items))
+    return {"kind": "menu", "items": items[:80]}
+
+
+# ── Recipes ──
+
+RECIPE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "servings": {"type": ["number", "null"]},
+        "ingredients": {"type": "array", "items": {"type": "string"}},
+        "steps": {"type": "array", "items": {"type": "string"}},
+        "nutrition_per_serving": {"type": ["object", "null"], "properties": NUTRITION_PROPS},
+    },
+    "required": ["name", "servings", "ingredients", "steps", "nutrition_per_serving"],
+}
+
+RECIPE_PROMPT = """These screenshots show one recipe. Copy it out:
+- name, servings (number of servings it makes, or null)
+- ingredients: one string per ingredient line, exactly as written (amount + unit + item)
+- steps: one string per instruction step
+- nutrition_per_serving: only if the screenshots show nutrition facts, else null. Do not estimate.
+Reply with JSON only."""
+
+INGREDIENT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"food": {"type": "string"}, "grams": {"type": "number"}},
+                "required": ["food", "grams"],
+            },
+        }
+    },
+    "required": ["items"],
+}
+
+INGREDIENT_PROMPT = """Convert each recipe ingredient line into a plain generic food name that would match a
+nutrition database (e.g. "chicken breast, raw", "olive oil", "white rice, uncooked") and its weight in grams
+for the WHOLE recipe. Convert cups, tablespoons, pieces etc. to grams with typical values. Skip water, salt to
+taste and optional garnishes. Reply with JSON only.
+
+Ingredients:
+"""
+
+USDA_TO_NUTRITION = {
+    "kcal": "kcal_100g",
+    "protein_g": "protein_100g",
+    "carbs_g": "carbs_100g",
+    "fat_g": "fat_100g",
+    "fiber_g": "fiber_100g",
+    "sugar_g": "sugar_100g",
+    "sat_fat_g": "sat_fat_100g",
+    "sodium_mg": "sodium_mg_100g",
+}
+
+
+async def estimate_nutrition(ingredients: list[str], servings: float) -> dict[str, Any]:
+    """Per-serving nutrition from ingredient lines: model -> grams, USDA -> per 100 g, then sum."""
+    text = "\n".join(f"- {i}" for i in ingredients[:60])
+    raw = await ollama_chat([{"role": "user", "content": INGREDIENT_PROMPT + text}], schema=INGREDIENT_SCHEMA)
+    try:
+        out = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=502, detail="Model did not return valid JSON") from e
+    totals = {k: 0.0 for k in USDA_TO_NUTRITION}
+    matched, missing = [], []
+    async with httpx.AsyncClient(timeout=20) as client:
+        for it in out.get("items", []):
+            food, grams = str(it.get("food", "")).strip(), it.get("grams")
+            if not food or not isinstance(grams, (int, float)) or grams <= 0:
+                continue
+            m = await usda_lookup(client, food)
+            if not m:
+                missing.append(food)
+                continue
+            matched.append({"food": food, "grams": round(grams), "usda": m["description"]})
+            for k, col in USDA_TO_NUTRITION.items():
+                v = m.get(col)
+                if isinstance(v, (int, float)):
+                    totals[k] += v * grams / 100
+    per = {k: round(v / max(servings, 1), 1) for k, v in totals.items()}
+    return {"per_serving": per, "matched": matched, "missing": missing}
+
+
+@app.post("/recipe")
+async def recipe(photos: list[UploadFile] = File(...), _: None = Depends(check_token)) -> dict[str, Any]:
+    out = await ask_images(RECIPE_PROMPT, await read_photos(photos), RECIPE_SCHEMA)
+    raw_servings = out.get("servings")
+    servings = raw_servings if isinstance(raw_servings, (int, float)) and raw_servings > 0 else 1
+    result: dict[str, Any] = {
+        "name": str(out.get("name") or "Recipe").strip(),
+        "servings": servings,
+        "ingredients": [str(i) for i in out.get("ingredients", []) if str(i).strip()],
+        "steps": [str(s) for s in out.get("steps", []) if str(s).strip()],
+        "nutrition_per_serving": out.get("nutrition_per_serving"),
+        "estimated": False,
+    }
+    if not result["nutrition_per_serving"] and result["ingredients"]:
+        est = await estimate_nutrition(result["ingredients"], servings)
+        result.update(nutrition_per_serving=est["per_serving"], estimated=True, missing=est["missing"])
+    log.info("recipe -> %s (%d ingredients, estimated=%s)", result["name"], len(result["ingredients"]), result["estimated"])
+    return {"kind": "recipe", "recipe": result}
+
+
+class NutritionRequest(BaseModel):
+    ingredients: list[str]
+    servings: float = 1
+
+
+@app.post("/recipe/nutrition")
+async def recipe_nutrition(body: NutritionRequest, _: None = Depends(check_token)) -> dict[str, Any]:
+    if not body.ingredients:
+        raise HTTPException(status_code=400, detail="No ingredients")
+    return await estimate_nutrition(body.ingredients, body.servings)
+
+
+# ── Coach ──
+
+COACH_SYSTEM = """You are the coach inside the user's personal training app "Steady".
+You help with training, nutrition and progress. Be practical, specific and brief (short paragraphs or bullets).
+Base advice on the user's data in CONTEXT; say when something is a guess. You are not a doctor:
+for pain, injury or medical issues, suggest seeing a professional. Never invent numbers that are not in CONTEXT."""
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
+    context: str = ""
+
+
+@app.post("/chat")
+async def chat(body: ChatRequest, _: None = Depends(check_token)) -> dict[str, Any]:
+    msgs: list[dict[str, Any]] = [{"role": "system", "content": f"{COACH_SYSTEM}\n\nCONTEXT:\n{body.context[:12000]}"}]
+    msgs += [
+        {"role": m.role if m.role in ("user", "assistant") else "user", "content": m.content}
+        for m in body.messages[-20:]
+    ]
+    reply = await ollama_chat(msgs, model=OLLAMA_CHAT_MODEL, temperature=0.4)
+    return {"reply": reply.strip()}
+
+
+PLAN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "summary": {"type": "string"},
+        "routines": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "weekday": {"type": "integer", "minimum": 0, "maximum": 6},
+                    "exercises": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {"name": {"type": "string"}, "sets": {"type": "integer"}, "reps": {"type": "integer"}},
+                            "required": ["name", "sets", "reps"],
+                        },
+                    },
+                },
+                "required": ["name", "weekday", "exercises"],
+            },
+        },
+    },
+    "required": ["summary", "routines"],
+}
+
+
+class PlanRequest(BaseModel):
+    goals: str
+    context: str = ""
+    exercises: list[str]
+
+
+@app.post("/plan")
+async def plan(body: PlanRequest, _: None = Depends(check_token)) -> dict[str, Any]:
+    prompt = (
+        f"{COACH_SYSTEM}\n\nCONTEXT:\n{body.context[:8000]}\n\nGOALS AND PREFERENCES:\n{body.goals}\n\n"
+        "Design a weekly training plan. weekday: 0=Sunday ... 6=Saturday. Use ONLY exercise names from this list, "
+        "spelled exactly:\n" + "\n".join(body.exercises[:300]) + "\n\nsummary: 2-4 sentences explaining the plan. Reply with JSON only."
+    )
+    raw = await ollama_chat([{"role": "user", "content": prompt}], schema=PLAN_SCHEMA, model=OLLAMA_CHAT_MODEL, temperature=0.3)
+    try:
+        out = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=502, detail="Model did not return valid JSON") from e
+    allowed = {e.lower(): e for e in body.exercises}
+    routines = []
+    for r in out.get("routines", []):
+        ex = [
+            {"name": allowed[str(e["name"]).lower()], "sets": max(1, min(10, int(e["sets"]))), "reps": max(1, min(50, int(e["reps"])))}
+            for e in r.get("exercises", [])
+            if str(e.get("name", "")).lower() in allowed
+        ]
+        if ex and 0 <= int(r.get("weekday", -1)) <= 6:
+            routines.append({"name": str(r["name"]).strip()[:40], "weekday": int(r["weekday"]), "exercises": ex})
+    return {"summary": out.get("summary", ""), "routines": routines}

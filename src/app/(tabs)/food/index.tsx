@@ -55,7 +55,7 @@ export default function FoodHome() {
       <Card>
         {data ? <MacroSummary totals={totals} targets={data.targets} /> : null}
         {data && !data.targets.kcal ? (
-          <Pressable onPress={() => router.push('/food/settings')}>
+          <Pressable onPress={() => router.push('/settings')}>
             <T style={{ color: c.accent }}>Set your daily targets →</T>
           </Pressable>
         ) : null}
@@ -75,9 +75,18 @@ export default function FoodHome() {
         {quick('takeoutbag.and.cup.and.straw', 'Saved', href('/food/meals', { date, meal: defaultMeal }))}
       </View>
 
-      <Row onPress={() => router.push('/food/settings')}>
+      <Row onPress={() => router.push('/settings')}>
         <SymbolView name="gearshape" tintColor={c.accent} size={20} />
         <T style={{ flex: 1 }}>Targets & settings</T>
+        <SymbolView name="chevron.right" tintColor={c.textMuted} size={14} />
+      </Row>
+
+      <Row onPress={() => router.push('/food/cookbook')}>
+        <SymbolView name="book.closed" tintColor={c.accent} size={20} />
+        <View style={{ flex: 1 }}>
+          <T>Cookbook</T>
+          <T variant="muted">Recipes from links (Wegmans…) or screenshots, logged per serving.</T>
+        </View>
         <SymbolView name="chevron.right" tintColor={c.textMuted} size={14} />
       </Row>
 

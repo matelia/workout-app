@@ -3,8 +3,10 @@ import * as Notifications from 'expo-notifications';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { pantryKinds } from '@/db/repos/pantry';
+import { listPendingNutrition, setRecipeNutrition } from '@/db/repos/recipes';
 import { getSetting } from '@/db/repos/settings';
-import { getJob, listQueuedJobs, setJobStatus, type SnapshotJob } from '@/db/repos/snapshots';
+import type { NutritionPerServing } from '@/lib/recipeImport';
+import { getJob, jobPhotos, listQueuedJobs, reviewRoute, setJobStatus, type SnapshotJob } from '@/db/repos/snapshots';
 
 // Talks to the FastAPI server on the home laptop (see server/README.md), reached over Tailscale.
 // Only the photo is sent. Barcodes and saved meals never use this.
@@ -99,7 +101,13 @@ export async function processJob(db: SQLiteDatabase, job: SnapshotJob): Promise<
   try {
     const form = new FormData();
     // React Native's FormData accepts { uri, name, type } file parts.
-    form.append('photo', { uri: photoUri(job.photo_path), name: 'photo.jpg', type: 'image/jpeg' } as unknown as Blob);
+    if (job.kind === 'menu' || job.kind === 'recipe') {
+      jobPhotos(job).forEach((p, i) =>
+        form.append('photos', { uri: photoUri(p), name: `photo${i}.jpg`, type: 'image/jpeg' } as unknown as Blob),
+      );
+    } else {
+      form.append('photo', { uri: photoUri(job.photo_path), name: 'photo.jpg', type: 'image/jpeg' } as unknown as Blob);
+    }
     // What you usually eat (e.g. "peanut butter"), so the model names foods the way your groceries are named.
     if (job.kind === 'meal') form.append('hints', JSON.stringify(await pantryKinds(db)));
     let res: Response;
@@ -143,18 +151,80 @@ export async function processQueue(db: SQLiteDatabase) {
       if (result === 'unreachable') break;
       if (result === 'ok') {
         await Notifications.scheduleNotificationAsync({
-          content: { title: 'Snapshot ready to review', body: 'Tap to check it and add it to your log.', data: { url: `/food/review/${job.id}` } },
+          content: {
+            title: job.kind === 'recipe' ? 'Recipe ready' : job.kind === 'menu' ? 'Menu items ready' : 'Snapshot ready to review',
+            body: 'Tap to check it.',
+            data: { url: reviewRoute(job) },
+          },
           trigger: null,
         }).catch(() => {});
       }
     }
+    await processPendingRecipes(db);
   } finally {
     running = false;
   }
 }
 
+/** Estimates nutrition for recipes imported without it (e.g. links with no nutrition, saved offline). */
+async function processPendingRecipes(db: SQLiteDatabase) {
+  for (const r of await listPendingNutrition(db)) {
+    const res = await serverPost<{ per_serving: NutritionPerServing; missing: string[] }>(db, '/recipe/nutrition', {
+      ingredients: JSON.parse(r.ingredients),
+      servings: r.servings,
+    });
+    if (!res.ok) {
+      if (res.unreachable) return;
+      continue;
+    }
+    const note = res.data.missing.length
+      ? `Estimated from ingredients (USDA); not counted: ${res.data.missing.join(', ')}`
+      : 'Estimated from ingredients (USDA)';
+    await setRecipeNutrition(db, r.id, res.data.per_serving, note);
+    await Notifications.scheduleNotificationAsync({
+      content: { title: 'Recipe nutrition ready', body: r.name, data: { url: `/food/cookbook/${r.id}` } },
+      trigger: null,
+    }).catch(() => {});
+  }
+}
+
 /** Retries the queue while the app is open (iOS doesn't let it run while closed). */
-export function startQueueRetries(db: SQLiteDatabase, everyMs = 120_000) {
-  const t = setInterval(() => processQueue(db).catch(() => {}), everyMs);
+export function startQueueRetries(db: SQLiteDatabase, everyMs = 120_000, extra?: () => Promise<void>) {
+  const t = setInterval(() => {
+    processQueue(db).catch(() => {});
+    extra?.().catch(() => {});
+  }, everyMs);
   return () => clearInterval(t);
+}
+
+export type ServerResult<T> = { ok: true; data: T } | { ok: false; unreachable: boolean; error: string };
+
+/** POST JSON to the laptop (recipe nutrition, coach chat, plan builder). */
+export async function serverPost<T>(db: SQLiteDatabase, path: string, body: unknown, timeoutMs = 180_000): Promise<ServerResult<T>> {
+  const { url, headers } = await serverConfig(db);
+  if (!url) return { ok: false, unreachable: true, error: 'No laptop address set (Settings → Home laptop).' };
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `${url}${path}`,
+      { method: 'POST', body: JSON.stringify(body), headers: { ...headers, 'Content-Type': 'application/json' } },
+      timeoutMs,
+    );
+  } catch {
+    return { ok: false, unreachable: true, error: 'Laptop not reachable.' };
+  }
+  if (!res.ok) return { ok: false, unreachable: false, error: `Server error ${res.status}: ${(await res.text()).slice(0, 200)}` };
+  return { ok: true, data: (await res.json()) as T };
+}
+
+/** Quick reachability check for offline banners. */
+export async function isServerOnline(db: SQLiteDatabase): Promise<boolean> {
+  const { url, headers } = await serverConfig(db);
+  if (!url) return false;
+  try {
+    const res = await fetchWithTimeout(`${url}/health`, { headers }, 4000);
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

@@ -1,14 +1,14 @@
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useMemo, useState } from 'react';
-import { ScrollView, SectionList, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, SectionList, StyleSheet, View } from 'react-native';
 
 import { Fab } from '@/components/Fab';
-import { Chip, Empty, Row, T } from '@/components/ui';
+import { Chip, Empty, Field, Row, T } from '@/components/ui';
 import { EQUIPMENT } from '@/data/exerciseInfo';
 import { listExercises, MUSCLE_GROUPS } from '@/db/repos/exercises';
 import { useDbQuery } from '@/hooks/useDbQuery';
-import { space, useColors } from '@/theme';
+import { radius, space, useColors } from '@/theme';
 
 export default function LibraryIndex() {
   const router = useRouter();
@@ -16,6 +16,8 @@ export default function LibraryIndex() {
   const [query, setQuery] = useState('');
   const [muscle, setMuscle] = useState<string | null>(null);
   const [equipment, setEquipment] = useState<string[]>([]);
+  // Muscle groups the user has opened. While searching, every matching group is open.
+  const [open, setOpen] = useState<Set<string>>(new Set());
   const { data: exercises } = useDbQuery(listExercises);
 
   const sections = useMemo(() => {
@@ -43,25 +45,17 @@ export default function LibraryIndex() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <Stack.Screen
-        options={{
-          headerSearchBarOptions: {
-            placeholder: 'Search exercises',
-            onChangeText: (e) => setQuery(e.nativeEvent.text),
-            hideWhenScrolling: false,
-          },
-        }}
-      />
       <SectionList
         style={{ backgroundColor: c.bg }}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
-        sections={sections}
+        sections={sections.map((sec) => ({ ...sec, count: sec.data.length, data: query.trim() || open.has(sec.title) ? sec.data : [] }))}
         keyExtractor={(e) => String(e.id)}
         stickySectionHeadersEnabled={false}
         ListHeaderComponent={
           <View style={{ gap: space.sm, marginBottom: space.sm }}>
+            <Field value={query} onChangeText={setQuery} placeholder="Search exercises" autoCorrect={false} clearButtonMode="while-editing" />
             <T variant="label">Muscle</T>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
               <Chip label="All" selected={!muscle} onPress={() => setMuscle(null)} />
@@ -78,11 +72,27 @@ export default function LibraryIndex() {
             </ScrollView>
           </View>
         }
-        renderSectionHeader={({ section }) => (
-          <T variant="label" style={styles.sectionHeader}>
-            {section.title}
-          </T>
-        )}
+        renderSectionHeader={({ section }) => {
+          const expanded = !!query.trim() || open.has(section.title);
+          return (
+            <Pressable
+              onPress={() =>
+                setOpen((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(section.title)) next.delete(section.title);
+                  else next.add(section.title);
+                  return next;
+                })
+              }
+              style={[styles.sectionHeader, { backgroundColor: c.card }]}>
+              <T variant="heading" style={{ flex: 1 }}>
+                {section.title}
+              </T>
+              <T variant="muted">{section.count}</T>
+              <SymbolView name={expanded ? 'chevron.up' : 'chevron.down'} tintColor={c.accent} size={16} />
+            </Pressable>
+          );
+        }}
         renderItem={({ item }) => (
           <Row onPress={() => router.push(`/library/${item.id}`)} style={styles.item}>
             <View style={{ flex: 1 }}>
@@ -110,6 +120,15 @@ export default function LibraryIndex() {
 const styles = StyleSheet.create({
   list: { padding: space.lg, paddingBottom: 120 },
   chips: { gap: space.sm, paddingRight: space.lg },
-  sectionHeader: { marginTop: space.lg, marginBottom: space.sm },
-  item: { marginBottom: space.sm },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    borderRadius: radius.md,
+    marginTop: space.sm,
+    marginBottom: space.sm,
+  },
+  item: { marginBottom: space.sm, marginLeft: space.md },
 });

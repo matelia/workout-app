@@ -5,6 +5,7 @@ import { WebView } from 'react-native-webview';
 import { Button, T } from '@/components/ui';
 import type { VideoType } from '@/db/repos/exercises';
 import { instagramEmbedUrl, localVideoUri, youtubeId } from '@/lib/video';
+import { formatClock, youtubeStart } from '@/lib/youtube';
 import { radius, useColors } from '@/theme';
 
 export function VideoPlayer({ type, value }: { type: VideoType; value: string }) {
@@ -15,12 +16,14 @@ export function VideoPlayer({ type, value }: { type: VideoType; value: string })
 
 function YouTube({ url }: { url: string }) {
   const id = youtubeId(url);
+  // Jump to the demonstration; the whole video is still scrubbable.
+  const start = youtubeStart(url);
   if (!id) return <T variant="muted">Invalid YouTube link.</T>;
   // Loaded as inline HTML with an https baseUrl so YouTube receives a Referer
   // (embeds without one fail with "Error 153").
   const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>html,body{margin:0;height:100%;background:#000}iframe{border:0;width:100%;height:100%}</style></head>
-<body><iframe src="https://www.youtube.com/embed/${id}?playsinline=1&rel=0"
+<body><iframe src="https://www.youtube.com/embed/${id}?playsinline=1&rel=0${start ? `&start=${start}` : ''}"
 allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen
 referrerpolicy="strict-origin-when-cross-origin"></iframe></body></html>`;
   return (
@@ -34,6 +37,7 @@ referrerpolicy="strict-origin-when-cross-origin"></iframe></body></html>`;
           style={styles.web}
         />
       </View>
+      {start ? <T variant="muted">Starts at {formatClock(start)}, at the demo. Scrub back for the full video.</T> : null}
       <Button title="Open in YouTube" variant="secondary" onPress={() => Linking.openURL(url)} />
     </View>
   );

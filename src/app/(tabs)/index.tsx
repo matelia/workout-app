@@ -3,6 +3,8 @@ import { type SQLiteDatabase, useSQLiteContext } from 'expo-sqlite';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { ActivityCard } from '@/components/ActivityCard';
+import { BigAction } from '@/components/BigAction';
 import { CareSlotRow } from '@/components/CareSlotRow';
 import { NutritionCheck } from '@/components/NutritionCheck';
 import { Rings } from '@/components/Rings';
@@ -75,9 +77,23 @@ export default function Today() {
     <Screen>
       <View style={styles.header}>
         <Text style={[styles.today, { color: c.text }]}>TODAY</Text>
-        <Text style={[styles.date, { color: c.textMuted }]}>
-          {formatDate(date, { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase()}
-        </Text>
+        <View style={styles.headerRight}>
+          <Text style={[styles.date, { color: c.textMuted }]}>
+            {formatDate(date, { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase()}
+          </Text>
+          <Pressable
+            accessibilityLabel="Coach"
+            onPress={() => router.push('/coach')}
+            style={({ pressed }) => [styles.iconBtn, { backgroundColor: pressed ? c.cardPressed : c.card }]}>
+            <SymbolView name="bubble.left.and.text.bubble.right.fill" tintColor={c.accent} size={18} />
+          </Pressable>
+          <Pressable
+            accessibilityLabel="Settings"
+            onPress={() => router.push('/settings')}
+            style={({ pressed }) => [styles.iconBtn, { backgroundColor: pressed ? c.cardPressed : c.card }]}>
+            <SymbolView name="gearshape.fill" tintColor={c.accent} size={20} />
+          </Pressable>
+        </View>
       </View>
 
       {active && !activeIsScheduled ? (
@@ -138,7 +154,9 @@ export default function Today() {
 
       <View style={{ gap: space.xs, marginTop: -space.sm }}>
         {kcalLeft === null ? (
-          <T style={{ color: c.accent }}>Set your targets in Food → Targets & settings</T>
+          <Pressable onPress={() => router.push('/settings')}>
+            <T style={{ color: c.accent }}>Set your daily targets →</T>
+          </Pressable>
         ) : (
           <T variant="muted">
             {kcalLeft >= 0 ? `${kcalLeft.toLocaleString()} kcal left today` : `${(-kcalLeft).toLocaleString()} kcal over`}
@@ -146,6 +164,8 @@ export default function Today() {
         )}
         <NutritionCheck totals={totals} targets={targets} compact />
       </View>
+
+      <ActivityCard />
 
       <View style={styles.quickRow}>
         {quick('camera', 'Snapshot', href('/food/snapshot', { date, meal }))}
@@ -168,33 +188,12 @@ export default function Today() {
   );
 }
 
-/** The big lime call-to-action card ("START WORKOUT  →"). */
-function BigAction({ kicker, title, onPress }: { kicker: string; title: string; onPress: () => void }) {
-  const c = useColors();
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.bigAction, { backgroundColor: c.accent, transform: [{ scale: pressed ? 0.98 : 1 }] }]}>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.kicker, { color: c.accentText }]} numberOfLines={1}>
-          {kicker.toUpperCase()}
-        </Text>
-        <Text style={[styles.bigTitle, { color: c.accentText }]} numberOfLines={1}>
-          {title.toUpperCase()}
-        </Text>
-      </View>
-      <SymbolView name="arrow.right" tintColor={c.accentText} size={28} weight="bold" />
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: space.sm },
   today: { fontFamily: fonts.display, fontSize: 52, lineHeight: 54 },
-  date: { fontFamily: fonts.displayBold, fontSize: 18, letterSpacing: 0.5, marginBottom: 6 },
-  bigAction: { flexDirection: 'row', alignItems: 'center', gap: space.md, borderRadius: radius.md, padding: space.lg },
-  kicker: { fontFamily: fonts.displayBold, fontSize: 15, letterSpacing: 0.6, opacity: 0.75 },
-  bigTitle: { fontFamily: fonts.display, fontSize: 34, lineHeight: 38 },
+  date: { fontFamily: fonts.displayBold, fontSize: 18, letterSpacing: 0.5 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: 4 },
+  iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   doneCard: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   nutrition: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
   protein: { fontFamily: fonts.display, fontSize: 28, lineHeight: 30, marginTop: space.sm },

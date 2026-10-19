@@ -17,6 +17,7 @@ import { migrate } from '@/db/migrate';
 import { isHealthSyncEnabled, syncHealth } from '@/lib/health';
 import { MindLockProvider } from '@/lib/mindLock';
 import { syncCareReminders, syncPhotoReminder, syncWorkoutReminders } from '@/lib/notifications';
+import { processCoachQueue } from '@/lib/coach';
 import { processQueue, startQueueRetries } from '@/lib/snapshotClient';
 import { useNavTheme, stackScreenOptions } from '@/theme';
 
@@ -45,6 +46,8 @@ export default function RootLayout() {
           <Stack screenOptions={stackScreenOptions}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="session/[id]" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
+            <Stack.Screen name="coach" options={{ title: 'Coach' }} />
+            <Stack.Screen name="settings" options={{ title: 'Settings', presentation: 'modal' }} />
             <Stack.Screen name="session/add" options={{ presentation: 'modal', title: 'Add exercises' }} />
           </Stack>
         </ThemeProvider>
@@ -79,10 +82,14 @@ function Startup() {
   // Retry queued snapshots at launch and whenever the app comes back to the foreground.
   useEffect(() => {
     processQueue(db).catch(() => {});
+    processCoachQueue(db).catch(() => {});
     const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active') processQueue(db).catch(() => {});
+      if (s === 'active') {
+        processQueue(db).catch(() => {});
+        processCoachQueue(db).catch(() => {});
+      }
     });
-    const stopRetries = startQueueRetries(db);
+    const stopRetries = startQueueRetries(db, 120_000, () => processCoachQueue(db));
     return () => {
       sub.remove();
       stopRetries();

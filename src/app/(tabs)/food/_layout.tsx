@@ -18,7 +18,10 @@ export default function FoodLayout() {
       <Stack.Screen name="restaurants/menu" options={{ title: 'Menu' }} />
       <Stack.Screen name="restaurants/search" options={{ title: 'Search USDA' }} />
       <Stack.Screen name="restaurants/item" options={{ title: 'Item' }} />
-      <Stack.Screen name="settings" options={{ title: 'Food settings' }} />
+      <Stack.Screen name="cookbook/index" options={{ title: 'Cookbook' }} />
+      <Stack.Screen name="cookbook/[id]" options={{ title: 'Recipe' }} />
+      <Stack.Screen name="cookbook/review" options={{ title: 'Recipe from screenshots' }} />
+      <Stack.Screen name="restaurants/review" options={{ title: 'Menu from screenshots' }} />
       <Stack.Screen name="snapshot" options={{ title: 'Snapshot' }} />
       <Stack.Screen name="queue" options={{ title: 'Snapshot queue' }} />
       <Stack.Screen name="review/[id]" options={{ title: 'Review' }} />

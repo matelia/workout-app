@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { Pressable, Text } from 'react-native';
+
 import type { Slug } from 'react-native-body-highlighter';
 
 import { MuscleMap } from '@/components/MuscleMap';
@@ -7,12 +7,10 @@ import { Button, Card, Empty, Screen, T } from '@/components/ui';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { getExercise } from '@/db/repos/exercises';
 import { useDbQuery } from '@/hooks/useDbQuery';
-import { useColors } from '@/theme';
 
 export default function ExerciseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const c = useColors();
   const { data: exercise } = useDbQuery((db) => getExercise(db, Number(id)), id);
 
   if (exercise === undefined) return null;
@@ -33,11 +31,6 @@ export default function ExerciseDetail() {
       <Stack.Screen
         options={{
           title: exercise.name,
-          headerRight: () => (
-            <Pressable hitSlop={12} onPress={edit}>
-              <Text style={{ color: c.accent, fontSize: 17 }}>Edit</Text>
-            </Pressable>
-          ),
         }}
       />
       <T variant="title">{exercise.name}</T>

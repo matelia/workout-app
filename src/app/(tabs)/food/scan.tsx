@@ -63,7 +63,8 @@ export default function ScanBarcode() {
   if (!permission.granted) {
     return (
       <View style={[styles.center, { backgroundColor: c.bg }]}>
-        <Stack.Screen options={{ headerLeft: () => close }} />
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={[styles.closeBtn, { backgroundColor: c.card }]}>{close}</View>
         <T style={{ textAlign: 'center' }}>Camera access is needed to scan barcodes.</T>
         <Button title="Allow camera" onPress={requestPermission} />
       </View>
@@ -72,13 +73,14 @@ export default function ScanBarcode() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <Stack.Screen options={{ headerLeft: () => close }} />
+      <Stack.Screen options={{ headerShown: false }} />
       <CameraView
         style={StyleSheet.absoluteFill}
         barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e'] }}
         onBarcodeScanned={(r) => onScan(r.data)}
       />
       <View style={styles.frame} pointerEvents="none" />
+      <View style={[styles.closeBtn, { backgroundColor: c.card }]}>{close}</View>
       <View style={[styles.status, { backgroundColor: c.card }]}>
         {status ? (
           <View style={{ flexDirection: 'row', gap: space.sm, alignItems: 'center' }}>
@@ -94,6 +96,7 @@ export default function ScanBarcode() {
 }
 
 const styles = StyleSheet.create({
+  closeBtn: { position: 'absolute', top: 60, left: space.lg, paddingHorizontal: space.lg, paddingVertical: space.sm, borderRadius: 999 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl, gap: space.lg },
   frame: {
     position: 'absolute',

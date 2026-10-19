@@ -5,12 +5,13 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Empty, Row, Screen, T } from '@/components/ui';
-import { deleteJob, listOpenJobs } from '@/db/repos/snapshots';
+import { deleteJob, listOpenJobs, reviewRoute } from '@/db/repos/snapshots';
 import { useDbQuery } from '@/hooks/useDbQuery';
 import { formatDate } from '@/lib/dates';
 import { photoUri, processQueue } from '@/lib/snapshotClient';
 import { radius, useColors } from '@/theme';
 
+const KIND_LABEL = { label: 'Label', meal: 'Meal', menu: 'Restaurant menu', recipe: 'Recipe' };
 const STATUS_LABEL = { queued: 'Waiting for laptop', processing: 'Processing…', needs_review: 'Ready to review', done: 'Done' };
 
 export default function SnapshotQueue() {
@@ -33,11 +34,12 @@ export default function SnapshotQueue() {
       {busy ? <ActivityIndicator /> : null}
       {jobs?.length === 0 ? <Empty title="Queue is empty" /> : null}
       {jobs?.map((j) => (
-        <Row key={j.id} onPress={() => j.status === 'needs_review' && router.push(`/food/review/${j.id}`)}>
+        <Row key={j.id} onPress={() => j.status === 'needs_review' && router.push(reviewRoute(j) as never)}>
           <Image source={{ uri: photoUri(j.photo_path) }} style={[styles.thumb, { backgroundColor: c.bg }]} contentFit="cover" />
           <View style={{ flex: 1 }}>
             <T>
-              {j.kind === 'label' ? 'Label' : 'Meal'} · {j.date ? formatDate(j.date) : ''}
+              {KIND_LABEL[j.kind]}
+              {j.date ? ` · ${formatDate(j.date)}` : ''}
             </T>
             <T variant="muted" style={j.status === 'needs_review' ? { color: c.accent } : undefined}>
               {STATUS_LABEL[j.status]}

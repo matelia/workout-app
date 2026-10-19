@@ -1,19 +1,18 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, Switch, Text, View } from 'react-native';
+import { Alert, Switch, View } from 'react-native';
 
 import { Button, Field, Screen, T } from '@/components/ui';
 import { deleteJournal, getJournal, saveJournal } from '@/db/repos/mind';
 import { formatDate, formatTime, nowLocalIso } from '@/lib/dates';
-import { space, useColors } from '@/theme';
+import { space } from '@/theme';
 
 export default function JournalEdit() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const entryId = id === 'new' ? null : Number(id);
   const db = useSQLiteContext();
   const router = useRouter();
-  const c = useColors();
 
   const [text, setText] = useState('');
   const [flag, setFlag] = useState(false);
@@ -40,11 +39,6 @@ export default function JournalEdit() {
       <Stack.Screen
         options={{
           title: entryId ? 'Entry' : 'New entry',
-          headerRight: () => (
-            <Pressable hitSlop={12} onPress={save}>
-              <Text style={{ color: c.accent, fontSize: 17, fontWeight: '600' }}>Save</Text>
-            </Pressable>
-          ),
         }}
       />
       <T variant="muted">

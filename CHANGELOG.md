@@ -239,3 +239,27 @@
 - **Leftover colors fixed:** check marks and Done buttons on lime use dark marks; protein bars and chart target lines use coral; the Mind check-in accent is lime (mood faces keep their own colors).
 - **New icon and splash:** lime and coral activity-style rings on black. The source is `design/icon.html`; the mockups are in `design/`.
 - The iOS build artifact is now `Steady.ipa`.
+
+## Batch: coach, cookbook, menu screenshots and polish (2026-10-19)
+- **AI coach** (Today → chat button, or Workouts → Coach). It runs on the laptop via Ollama: `/chat` and `/plan` on the server, and it reuses the vision model by default.
+  - **Goals setup:** goal, experience, days per week, session length, and notes such as injuries or equipment.
+  - **What it sees:** a summary of your goals, schedule, routines, 6-week lift progress, 14-day nutrition averages, and body trend. Mind data is never included.
+  - **Plan builder:** "Build me a plan" proposes routines using only exercises in your library; "Create these routines" adds them, with the weekly schedule.
+  - **Offline:** questions wait in a queue while the laptop is off. A "Coach replied" notification arrives once they're answered, and an offline banner explains this.
+- **Cookbook** (Food → Cookbook):
+  - **Paste a link:** reads the recipe's structured data (verified on Wegmans pages, including per-serving nutrition).
+  - **From screenshots:** the laptop's `/recipe` route reads them. If nutrition isn't shown, `/recipe/nutrition` estimates it from the ingredients with USDA, and a link without nutrition is estimated later if the laptop is offline.
+  - Recipes log as "1 serving", appear in search, and are suggested when you snap the finished dish.
+- **Restaurant menu screenshots:** Restaurants → (restaurant) → + → **Import from screenshots**. The laptop's `/menu` route reads every item; tick the ones you order and they're saved.
+- Migration `012`:
+  - rebuilds `snapshot_job` with kinds `menu`/`recipe`, multiple photos and context
+  - adds the `recipe` and `coach_message` tables
+- **Library:**
+  - muscle groups collapse and expand (with counts); search opens every group with a match
+  - search sits in the page, so the iOS 26 bottom search bar no longer covers the + button
+- **Videos start at the demonstration.** Start times come from YouTube's "Most replayed" data (migration `011`), and each exercise's edit screen has a "Start at" field. The full video is still scrubbable.
+- **Settings:** one screen for the whole app (lime gear on Today). It covers targets and limits, the USDA key (shown as "Key saved ✓" once saved, with the sign-up button hidden), the home laptop, rest timer, and steps/move goals.
+- **Header buttons removed app-wide.** A stale one was showing up on other tabs. The actions now live on the page: Finish/Close in the logger, Add in the exercise picker, Rename on routines, Close on the scanner.
+- **Workouts tab:** today's routine at the top as a big Start card (or Done / Rest day), a Monday–Sunday week strip with today in lime, and a Coach row.
+- **Today: Activity card** with steps and Move rings, plus exercise minutes, from Apple Health (installed app only).
+- **Snapshot screen:** an offline banner, plus "ready" notifications for menu and recipe jobs.

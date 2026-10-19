@@ -78,3 +78,31 @@ export async function syncHealth(db: SQLiteDatabase): Promise<{ ok: boolean; mes
     return { ok: false, imported: 0, message: `Apple Health sync failed: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
+
+export type Activity = { steps: number; activeKcal: number; exerciseMin: number };
+
+/** Today's steps, active calories and exercise minutes (iPhone + Watch), or null when unavailable. */
+export async function todayActivity(): Promise<Activity | null> {
+  const HealthKit = loadHealthKit();
+  if (!HealthKit) return null;
+  try {
+    const ACTIVITY = [
+      'HKQuantityTypeIdentifierStepCount',
+      'HKQuantityTypeIdentifierActiveEnergyBurned',
+      'HKQuantityTypeIdentifierAppleExerciseTime',
+    ] as const;
+    await HealthKit.requestAuthorization({ toRead: ACTIVITY });
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const filter = { date: { startDate: start } };
+    const [steps, energy, exercise] = await Promise.all([
+      HealthKit.queryStatisticsForQuantity(ACTIVITY[0], ['cumulativeSum'], { filter, unit: 'count' }),
+      HealthKit.queryStatisticsForQuantity(ACTIVITY[1], ['cumulativeSum'], { filter, unit: 'kcal' }),
+      HealthKit.queryStatisticsForQuantity(ACTIVITY[2], ['cumulativeSum'], { filter, unit: 'min' }),
+    ]);
+    const total = (r: { sumQuantity?: { quantity: number } }) => Math.round(r.sumQuantity?.quantity ?? 0);
+    return { steps: total(steps), activeKcal: total(energy), exerciseMin: total(exercise) };
+  } catch {
+    return null;
+  }
+}

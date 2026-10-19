@@ -2,7 +2,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { Stepper } from '@/components/Stepper';
 import { Button, Card, Empty, Screen, T } from '@/components/ui';
@@ -24,7 +24,6 @@ export default function RoutineEditor() {
   const routineId = Number(id);
   const db = useSQLiteContext();
   const router = useRouter();
-  const c = useColors();
 
   const { data: routine, reload: reloadRoutine } = useDbQuery((d) => getRoutine(d, routineId), id);
   const { data: loaded } = useDbQuery((d) => listRoutineExercises(d, routineId), id);
@@ -96,11 +95,6 @@ export default function RoutineEditor() {
       <Stack.Screen
         options={{
           title: routine.name,
-          headerRight: () => (
-            <Pressable hitSlop={12} onPress={rename}>
-              <Text style={{ color: c.accent, fontSize: 17 }}>Rename</Text>
-            </Pressable>
-          ),
         }}
       />
 
@@ -141,6 +135,7 @@ export default function RoutineEditor() {
         variant="secondary"
         onPress={() => router.push(`/workouts/add-exercises?routineId=${routineId}`)}
       />
+      <Button title="Rename routine" variant="secondary" onPress={rename} />
       <Button title="Delete routine" variant="danger" onPress={deleteRoutine} />
     </Screen>
   );

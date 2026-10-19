@@ -16,6 +16,8 @@ const colors = {
   accentText: '#111111',
   /** Second data color (protein, secondary rings). */
   accent2: '#FF5A36',
+  /** Third data color (steps). */
+  accent3: '#3DA5FF',
   success: '#C6F432',
   warning: '#FFB020',
   danger: '#FF453A',

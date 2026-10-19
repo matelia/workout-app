@@ -17,6 +17,7 @@ import {
   type VideoType,
 } from '@/db/repos/exercises';
 import { copyVideoIntoApp, deleteLocalVideo, validateVideo } from '@/lib/video';
+import { formatClock, parseClock, withYoutubeStart, youtubeStart } from '@/lib/youtube';
 import { space, useColors } from '@/theme';
 
 const VIDEO_OPTIONS: { value: VideoType | null; label: string }[] = [
@@ -38,6 +39,7 @@ export default function EditExercise() {
   const [notes, setNotes] = useState('');
   const [videoType, setVideoType] = useState<VideoType | null>(null);
   const [videoValue, setVideoValue] = useState('');
+  const [startText, setStartText] = useState('');
   const [originalFile, setOriginalFile] = useState<string | null>(null);
   const [equipment, setEquipment] = useState<string | null>(null);
   const [primary, setPrimary] = useState<string[]>([]);
@@ -53,6 +55,8 @@ export default function EditExercise() {
       setNotes(e.notes ?? '');
       setVideoType(e.video_type);
       setVideoValue(e.video_url_or_path ?? '');
+      const start = e.video_type === 'youtube' ? youtubeStart(e.video_url_or_path ?? '') : 0;
+      setStartText(start ? formatClock(start) : '');
       if (e.video_type === 'file') setOriginalFile(e.video_url_or_path);
       setEquipment(e.equipment);
       setPrimary(e.muscles_primary ? JSON.parse(e.muscles_primary) : []);
@@ -100,12 +104,17 @@ export default function EditExercise() {
       const err = validateVideo(videoType, videoValue);
       if (err) return setError(err);
     }
+    if (videoType === 'youtube' && parseClock(startText) === null) return setError('Start time should look like 1:22 or 45.');
     const input = {
       name: name.trim(),
       muscle_group: muscle,
       notes: notes.trim() || null,
       video_type: videoType,
-      video_url_or_path: videoType ? videoValue.trim() : null,
+      video_url_or_path: !videoType
+        ? null
+        : videoType === 'youtube'
+          ? withYoutubeStart(videoValue.trim(), parseClock(startText) ?? 0)
+          : videoValue.trim(),
       equipment,
       muscles_primary: primary.length ? JSON.stringify(primary) : null,
       muscles_secondary: secondary.length ? JSON.stringify(secondary) : null,
@@ -136,16 +145,6 @@ export default function EditExercise() {
       <Stack.Screen
         options={{
           title: exerciseId ? 'Edit exercise' : 'New exercise',
-          headerLeft: () => (
-            <Pressable hitSlop={12} onPress={() => router.back()}>
-              <Text style={{ color: c.accent, fontSize: 17 }}>Cancel</Text>
-            </Pressable>
-          ),
-          headerRight: () => (
-            <Pressable hitSlop={12} onPress={save}>
-              <Text style={{ color: c.accent, fontSize: 17, fontWeight: '600' }}>Save</Text>
-            </Pressable>
-          ),
         }}
       />
 
@@ -223,6 +222,15 @@ export default function EditExercise() {
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
+          />
+        ) : null}
+        {videoType === 'youtube' ? (
+          <Field
+            label="Start at (skip the intro)"
+            value={startText}
+            onChangeText={setStartText}
+            placeholder="e.g. 0:54. Empty plays from the start"
+            keyboardType="numbers-and-punctuation"
           />
         ) : null}
         {videoType === 'file' ? (

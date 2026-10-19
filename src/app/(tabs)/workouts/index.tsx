@@ -1,16 +1,20 @@
 import { useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView } from 'expo-symbols';
-import { Alert, Pressable, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { BigAction } from '@/components/BigAction';
 import { Button, Card, Empty, Row, Screen, T } from '@/components/ui';
 import { createRoutine, listRoutines } from '@/db/repos/routines';
-import { listSchedule } from '@/db/repos/schedule';
-import { getActiveSession, listRecentSessions, startSession } from '@/db/repos/sessions';
+import { listSchedule, scheduleForDate } from '@/db/repos/schedule';
+import { getActiveSession, listRecentSessions, sessionsOnDate, startSession } from '@/db/repos/sessions';
 import { Fab } from '@/components/Fab';
 import { useDbQuery } from '@/hooks/useDbQuery';
-import { formatDate, formatTime, WEEKDAYS } from '@/lib/dates';
-import { space, useColors } from '@/theme';
+import { formatDate, formatTime, todayStr, WEEKDAYS } from '@/lib/dates';
+import { fonts, radius, space, useColors } from '@/theme';
+
+// Monday-first week strip.
+const ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 export default function WorkoutsIndex() {
   const db = useSQLiteContext();
@@ -41,30 +45,71 @@ export default function WorkoutsIndex() {
     router.push(`/session/${id}`);
   }
 
-  const weekly = schedule?.filter((s) => s.weekday !== null) ?? [];
+  const weekday = new Date().getDay();
+  const todayDate = todayStr();
+  const { data: todayScheduled } = useDbQuery((d) => scheduleForDate(d, todayDate, weekday), todayDate);
+  const { data: todaySessions } = useDbQuery((d) => sessionsOnDate(d, todayDate), todayDate);
+  const todays = todayScheduled ?? [];
+  const doneToday = new Set((todaySessions ?? []).filter((x) => x.end_time).map((x) => x.routine_id));
 
   return (
     <Screen overlay={<Fab label="New routine" onPress={newRoutine} />}>
 
       {active ? (
-        <Card style={{ borderColor: c.accent }}>
-          <T variant="label">In progress</T>
-          <T variant="heading">{active.routine_name ?? 'Workout'}</T>
-          <Button title="Resume" onPress={() => router.push(`/session/${active.id}`)} />
-        </Card>
+        <BigAction kicker="In progress" title={`Resume ${active.routine_name ?? 'workout'}`} onPress={() => router.push(`/session/${active.id}`)} />
       ) : null}
 
-      <Row onPress={() => router.push('/workouts/schedule')}>
-        <SymbolView name="calendar" tintColor={c.accent} size={20} />
+      {!active && todays.length === 0 ? (
+        <Card>
+          <T variant="label">Today</T>
+          <T variant="heading">Rest day</T>
+          <T variant="muted">Nothing scheduled. Pick a routine below if you feel like training.</T>
+        </Card>
+      ) : null}
+      {!active
+        ? todays.map((s) =>
+            doneToday.has(s.routine_id) ? (
+              <Card key={s.id} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+                <SymbolView name="checkmark.circle.fill" tintColor={c.accent} size={30} />
+                <View>
+                  <T variant="label">Today · done</T>
+                  <T variant="heading">{s.routine_name}</T>
+                </View>
+              </Card>
+            ) : (
+              <BigAction
+                key={s.id}
+                kicker={`Today${s.reminder_time ? ` · ${formatTime(s.reminder_time)}` : ''}`}
+                title={s.routine_name}
+                onPress={() => start(s.routine_id)}
+              />
+            ),
+          )
+        : null}
+
+      <Pressable onPress={() => router.push('/workouts/schedule')} style={[styles.week, { backgroundColor: c.card }]}>
+        {ORDER.map((wd) => {
+          const day = (schedule ?? []).filter((x) => x.weekday === wd);
+          const isToday = wd === weekday;
+          return (
+            <View key={wd} style={[styles.day, isToday && { backgroundColor: c.accent }]}>
+              <Text style={[styles.dayName, { color: isToday ? c.accentText : c.textMuted }]}>{WEEKDAYS[wd].toUpperCase()}</Text>
+              <Text style={[styles.dayRoutine, { color: isToday ? c.accentText : day.length ? c.text : c.textMuted }]} numberOfLines={2}>
+                {day.length ? day.map((x) => x.routine_name.split(/[s&]+/)[0]).join('/') : 'Rest'}
+              </Text>
+            </View>
+          );
+        })}
+      </Pressable>
+      <T variant="muted" style={{ marginTop: -space.sm }}>
+        Tap the week to change your schedule and reminders.
+      </T>
+
+      <Row onPress={() => router.push('/coach')}>
+        <SymbolView name="bubble.left.and.text.bubble.right.fill" tintColor={c.accent} size={20} />
         <View style={{ flex: 1 }}>
-          <T>Weekly schedule</T>
-          <T variant="muted" numberOfLines={2}>
-            {weekly.length
-              ? weekly
-                  .map((s) => `${WEEKDAYS[s.weekday!]} ${s.routine_name}${s.reminder_time ? ` ${formatTime(s.reminder_time)}` : ''}`)
-                  .join(' · ')
-              : 'Nothing scheduled'}
-          </T>
+          <T>Coach</T>
+          <T variant="muted">Build a plan, ask why, check your progress.</T>
         </View>
         <SymbolView name="chevron.right" tintColor={c.textMuted} size={14} />
       </Row>
@@ -105,3 +150,10 @@ export default function WorkoutsIndex() {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  week: { flexDirection: 'row', borderRadius: radius.md, padding: 6, gap: 4 },
+  day: { flex: 1, alignItems: 'center', paddingVertical: space.sm, borderRadius: radius.sm, gap: 2, minHeight: 58 },
+  dayName: { fontFamily: fonts.displayBold, fontSize: 14, letterSpacing: 0.5 },
+  dayRoutine: { fontSize: 10, fontWeight: '600', textAlign: 'center' },
+});

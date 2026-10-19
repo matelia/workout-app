@@ -1,14 +1,15 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActionSheetIOS, ActivityIndicator, View } from 'react-native';
 
 import { Button, Card, Chip, ChipRow, Screen, T } from '@/components/ui';
 import { MEAL_LABELS, MEALS, mealForNow, type Meal } from '@/db/repos/food';
 import { createJob, getJob, type SnapshotKind } from '@/db/repos/snapshots';
 import { todayStr } from '@/lib/dates';
-import { processJob, storePhoto } from '@/lib/snapshotClient';
+import { isServerOnline, processJob, storePhoto } from '@/lib/snapshotClient';
 import { space, useColors } from '@/theme';
 
 export default function SnapshotScreen() {
@@ -18,6 +19,12 @@ export default function SnapshotScreen() {
   const c = useColors();
   const [meal, setMeal] = useState<Meal>((p.meal as Meal) ?? mealForNow());
   const [status, setStatus] = useState<{ busy: boolean; msg: string | null }>({ busy: false, msg: null });
+  const [online, setOnline] = useState<boolean | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      isServerOnline(db).then(setOnline);
+    }, [db]),
+  );
 
   function choose(kind: SnapshotKind) {
     ActionSheetIOS.showActionSheetWithOptions(
@@ -65,6 +72,14 @@ export default function SnapshotScreen() {
 
   return (
     <Screen>
+      {online === false ? (
+        <View style={{ flexDirection: 'row', gap: space.sm, alignItems: 'center', backgroundColor: c.card2, padding: space.md, borderRadius: 14 }}>
+          <SymbolView name="wifi.slash" tintColor={c.warning} size={16} />
+          <T variant="muted" style={{ flex: 1 }}>
+            Laptop offline. Snap anyway: photos are saved and processed when it’s back, and you’ll get a notification.
+          </T>
+        </View>
+      ) : null}
       <T variant="muted">
         Photos go only to your own laptop over Tailscale. You always review the result before anything is logged.
       </T>

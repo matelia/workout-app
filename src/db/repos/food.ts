@@ -291,8 +291,8 @@ export function amountLabel(e: Pick<LogEntry, 'grams' | 'servings' | 'serving_g'
     if (Math.abs(n * 2 - Math.round(n * 2)) < 0.05) {
       const count = Math.round(n * 2) / 2;
       const unit = `${e.serving_label}${count === 1 ? '' : 's'}`;
-      // Restaurant items often have a nominal weight; the gram number would mislead.
-      return e.serving_label === 'item' ? `${count} ${unit}` : `${count} ${unit} (${Math.round(e.grams)} g)`;
+      // Restaurant items and recipe servings often have a nominal weight; grams would mislead.
+      return e.serving_label === 'item' || e.serving_label === 'serving' ? `${count} ${unit}` : `${count} ${unit} (${Math.round(e.grams)} g)`;
     }
   }
   return `${Math.round(e.grams)} g`;

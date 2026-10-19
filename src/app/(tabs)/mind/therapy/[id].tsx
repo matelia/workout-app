@@ -1,20 +1,18 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, Text } from 'react-native';
+import { Alert } from 'react-native';
 
 import { DateField } from '@/components/pickers';
 import { Button, Field, Screen } from '@/components/ui';
 import { deleteTherapy, getTherapy, saveTherapy } from '@/db/repos/mind';
 import { todayStr } from '@/lib/dates';
-import { useColors } from '@/theme';
 
 export default function TherapyEdit() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const sessionId = id === 'new' ? null : Number(id);
   const db = useSQLiteContext();
   const router = useRouter();
-  const c = useColors();
 
   const [date, setDate] = useState(todayStr());
   const [notes, setNotes] = useState('');
@@ -47,11 +45,6 @@ export default function TherapyEdit() {
       <Stack.Screen
         options={{
           title: sessionId ? 'Session' : 'New session',
-          headerRight: () => (
-            <Pressable hitSlop={12} onPress={save}>
-              <Text style={{ color: c.accent, fontSize: 17, fontWeight: '600' }}>Save</Text>
-            </Pressable>
-          ),
         }}
       />
       <DateField label="Date" value={date} onChange={setDate} />

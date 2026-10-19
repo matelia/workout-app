@@ -25,3 +25,16 @@ export function extOf(uri: string, fallback: string) {
   const m = uri.match(/\.([a-z0-9]+)(?:\?|$)/i);
   return m ? m[1].toLowerCase() : fallback;
 }
+
+/** Pick up to `limit` screenshots/photos from the library and copy them into the app. */
+export async function pickScreenshots(folder: string, limit = 8): Promise<string[]> {
+  const ImagePicker = await import('expo-image-picker');
+  const res = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    allowsMultipleSelection: true,
+    selectionLimit: limit,
+    quality: 0.8,
+  });
+  if (res.canceled) return [];
+  return res.assets.map((a) => storeMedia(a.uri, folder, 'jpg'));
+}

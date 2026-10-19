@@ -2,7 +2,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 
 import { TimeField } from '@/components/pickers';
 import { Button, Card, Chip, ChipRow, Field, Screen, T } from '@/components/ui';
@@ -96,16 +96,6 @@ export default function CareItemEdit() {
       <Stack.Screen
         options={{
           title: itemId ? 'Edit care item' : 'New care item',
-          headerLeft: () => (
-            <Pressable hitSlop={12} onPress={() => router.back()}>
-              <Text style={{ color: c.accent, fontSize: 17 }}>Cancel</Text>
-            </Pressable>
-          ),
-          headerRight: () => (
-            <Pressable hitSlop={12} onPress={save}>
-              <Text style={{ color: c.accent, fontSize: 17, fontWeight: '600' }}>Save</Text>
-            </Pressable>
-          ),
         }}
       />
 

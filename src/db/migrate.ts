@@ -10,6 +10,8 @@ import * as m007 from './migrations/007_exercise_equipment_muscles';
 import * as m008 from './migrations/008_pantry';
 import * as m009 from './migrations/009_more_nutrients';
 import * as m010 from './migrations/010_restaurants';
+import * as m011 from './migrations/011_video_start_times';
+import * as m012 from './migrations/012_menu_recipes_coach';
 
 // Append new migrations here. Never edit one that has shipped; add a new file instead.
 // The applied version is stored in SQLite's built-in PRAGMA user_version.
@@ -24,6 +26,8 @@ const MIGRATIONS: { version: number; up: (db: SQLiteDatabase) => Promise<void> }
   { version: 8, up: m008.up },
   { version: 9, up: m009.up },
   { version: 10, up: m010.up },
+  { version: 11, up: m011.up },
+  { version: 12, up: m012.up },
 ];
 
 export async function migrate(db: SQLiteDatabase) {

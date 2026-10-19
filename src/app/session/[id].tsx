@@ -116,24 +116,16 @@ export default function SessionScreen() {
       <Stack.Screen
         options={{
           title: session.routine_name ?? 'Workout',
-          headerLeft: () => (
-            <Pressable hitSlop={12} onPress={() => router.back()}>
-              <Text style={{ color: c.accent, fontSize: 17 }}>{finished ? 'Done' : 'Close'}</Text>
-            </Pressable>
-          ),
-          headerRight: finished
-            ? undefined
-            : () => (
-                <Pressable hitSlop={12} onPress={finish}>
-                  <Text style={{ color: c.accent, fontSize: 17, fontWeight: '600' }}>Finish</Text>
-                </Pressable>
-              ),
         }}
       />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: 140 + insets.bottom }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
+        <View style={{ flexDirection: 'row', gap: space.sm }}>
+          <Button title={finished ? 'Done' : 'Close'} variant="secondary" style={{ flex: 1 }} onPress={() => router.back()} />
+          {!finished ? <Button title="Finish" style={{ flex: 1 }} onPress={finish} /> : null}
+        </View>
         {finished ? (
           <T variant="muted">{formatDate(session.date, { weekday: 'long', month: 'long', day: 'numeric' })} · editing a finished workout</T>
         ) : (

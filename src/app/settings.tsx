@@ -25,6 +25,12 @@ export default function FoodSettings() {
   const [satFat, setSatFat] = useState('');
   const [sodium, setSodium] = useState('');
   const [usdaKey, setUsdaKey] = useState('');
+  // The saved key is never shown in full; editing starts empty.
+  const [savedKey, setSavedKey] = useState<string | null>(null);
+  const [editingKey, setEditingKey] = useState(false);
+  const [rest, setRest] = useState('90');
+  const [stepsGoal, setStepsGoal] = useState('10000');
+  const [moveGoal, setMoveGoal] = useState('500');
   const [serverUrl, setServerUrl] = useState('');
   const [serverToken, setServerToken] = useState('');
   const [saved, setSaved] = useState(false);
@@ -41,7 +47,10 @@ export default function FoodSettings() {
       setSatFat(t.sat_fat_g?.toString() ?? '');
       setSodium(t.sodium_mg?.toString() ?? '');
     });
-    getSetting(db, 'usda_api_key').then((v) => setUsdaKey(v ?? ''));
+    getSetting(db, 'usda_api_key').then(setSavedKey);
+    getSetting(db, 'rest_seconds').then((v) => v && setRest(v));
+    getSetting(db, 'steps_goal').then((v) => v && setStepsGoal(v));
+    getSetting(db, 'move_goal').then((v) => v && setMoveGoal(v));
     getSetting(db, 'snapshot_server_url').then((v) => setServerUrl(v ?? ''));
     getSetting(db, 'snapshot_server_token').then((v) => setServerToken(v ?? ''));
   }, [db]);
@@ -57,7 +66,15 @@ export default function FoodSettings() {
       sat_fat_g: num(satFat),
       sodium_mg: num(sodium),
     });
-    await setSetting(db, 'usda_api_key', usdaKey.trim() || null);
+    if (usdaKey.trim()) {
+      await setSetting(db, 'usda_api_key', usdaKey.trim());
+      setSavedKey(usdaKey.trim());
+      setUsdaKey('');
+      setEditingKey(false);
+    }
+    await setSetting(db, 'rest_seconds', String(num(rest) ?? 90));
+    await setSetting(db, 'steps_goal', String(num(stepsGoal) ?? 10000));
+    await setSetting(db, 'move_goal', String(num(moveGoal) ?? 500));
     await setSetting(db, 'snapshot_server_url', serverUrl.trim().replace(/\/+$/, '') || null);
     await setSetting(db, 'snapshot_server_token', serverToken.trim() || null);
     setSaved(true);
@@ -101,25 +118,43 @@ export default function FoodSettings() {
 
       <Card>
         <T variant="heading">USDA FoodData Central</T>
-        <T variant="muted">
-          Without a key, search uses a shared demo key that allows only about 10 searches an hour. A personal key is free
-          (1,000 an hour); takes a minute to get by email.
-        </T>
-        <Field value={usdaKey} onChangeText={setUsdaKey} placeholder="API key (optional)" autoCapitalize="none" autoCorrect={false} />
-        <Button title="Get a free key" variant="secondary" onPress={() => Linking.openURL('https://fdc.nal.usda.gov/api-key-signup')} />
+        {savedKey && !editingKey ? (
+          <>
+            <T style={{ color: c.success }}>Key saved ✓ (ends in {savedKey.slice(-4)})</T>
+            <Button title="Change key" variant="secondary" onPress={() => setEditingKey(true)} />
+          </>
+        ) : (
+          <>
+            <T variant="muted">
+              Without a key, search uses a shared demo key that allows only about 10 searches an hour. A personal key is free
+              (1,000 an hour) and takes a minute to get by email.
+            </T>
+            <Field value={usdaKey} onChangeText={setUsdaKey} placeholder="Paste your API key" autoCapitalize="none" autoCorrect={false} />
+            {!savedKey ? (
+              <Button title="Get a free key" variant="secondary" onPress={() => Linking.openURL('https://fdc.nal.usda.gov/api-key-signup')} />
+            ) : null}
+          </>
+        )}
       </Card>
 
       <Card>
-        <T variant="heading">Snapshot server (home laptop)</T>
+        <T variant="heading">Home laptop (snapshots and coach)</T>
         <T variant="muted">
-          Your laptop’s Tailscale address and port, e.g. http://laptop:8000 or http://100.x.y.z:8000. Only snapshot photos are
-          sent there. Mind data never is.
+          Your laptop’s Tailscale address and port, e.g. http://laptop:8000 or http://100.x.y.z:8000. Snapshot photos and coach
+          questions go there. Mind data never does.
         </T>
         <Field value={serverUrl} onChangeText={setServerUrl} placeholder="http://laptop:8000" autoCapitalize="none" autoCorrect={false} keyboardType="url" />
         <Field value={serverToken} onChangeText={setServerToken} placeholder="Shared token (from server .env)" autoCapitalize="none" autoCorrect={false} secureTextEntry />
         <Button title="Test connection" variant="secondary" onPress={test} />
         {check.busy ? <ActivityIndicator /> : null}
         {check.msg ? <T style={{ color: check.ok ? c.success : c.danger }}>{check.msg}</T> : null}
+      </Card>
+
+      <Card>
+        <T variant="heading">Workouts and activity</T>
+        {pair(['Rest timer (seconds)', rest, setRest], ['Steps goal', stepsGoal, setStepsGoal])}
+        <Field label="Move goal (active kcal)" value={moveGoal} onChangeText={setMoveGoal} keyboardType="number-pad" />
+        <T variant="muted">Steps and active calories come from Apple Health in the installed app.</T>
       </Card>
 
       <Button title={saved ? 'Saved ✓' : 'Save'} onPress={save} />
