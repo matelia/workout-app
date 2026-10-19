@@ -220,3 +220,22 @@
 - **How it's stored:** restaurant items are grocery-table rows with `place_type = 'restaurant'` (migration `010`). They show up in Food search ("My groceries & restaurants") and in snapshot matching, so a snapped "chicken sandwich" suggests your Chick-fil-A one. My groceries lists only grocery items.
 - **Food log amounts:** "2 slices (57 g)" or "1 item" when the food has a serving; plain grams otherwise.
 - USDA search hits carry serving info: SR Legacy food measures ("3 strips = 135 g" becomes 1 strip = 45 g), or Branded serving size in grams.
+
+## Design: "Steady" (2026-10-19)
+- **The app is now called Steady.** The bundle ID is `com.matin.steady` and the URL scheme is `steady`.
+- **New look ("bold sport"):**
+  - always dark: near-black surfaces, lime as the single action color, coral as the second data color
+  - Barlow Condensed for titles, labels, buttons and big numbers; the iPhone's own font for body text
+- **Shared building blocks:**
+  - borderless cards and rows
+  - buttons with condensed uppercase text and a press animation
+  - lime selected chips
+  - one shared header style for every screen stack (`stackScreenOptions`), and a dark tab bar with a lime active tab
+- **Today, rebuilt:**
+  - a big "TODAY" header and date
+  - a lime "START WORKOUT →" card for each scheduled routine (or "Resume" / "Done ✓")
+  - calorie (lime) and protein (coral) rings with big numbers, kcal left, and the healthy-eating check
+  - quick-add tiles and Care
+- **Leftover colors fixed:** check marks and Done buttons on lime use dark marks; protein bars and chart target lines use coral; the Mind check-in accent is lime (mood faces keep their own colors).
+- **New icon and splash:** lime and coral activity-style rings on black. The source is `design/icon.html`; the mockups are in `design/`.
+- The iOS build artifact is now `Steady.ipa`.

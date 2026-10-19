@@ -1,6 +1,13 @@
+import {
+  BarlowCondensed_600SemiBold,
+  BarlowCondensed_700Bold,
+  BarlowCondensed_800ExtraBold,
+  useFonts,
+} from '@expo-google-fonts/barlow-condensed';
 import * as Notifications from 'expo-notifications';
 import { Stack, ThemeProvider, useRouter } from 'expo-router';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
@@ -11,18 +18,31 @@ import { isHealthSyncEnabled, syncHealth } from '@/lib/health';
 import { MindLockProvider } from '@/lib/mindLock';
 import { syncCareReminders, syncPhotoReminder, syncWorkoutReminders } from '@/lib/notifications';
 import { processQueue, startQueueRetries } from '@/lib/snapshotClient';
-import { useNavTheme } from '@/theme';
+import { useNavTheme, stackScreenOptions } from '@/theme';
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const navTheme = useNavTheme();
+  const [fontsLoaded, fontError] = useFonts({
+    BarlowCondensed_600SemiBold,
+    BarlowCondensed_700Bold,
+    BarlowCondensed_800ExtraBold,
+  });
+  const ready = fontsLoaded || !!fontError;
+  useEffect(() => {
+    if (ready) SplashScreen.hideAsync().catch(() => {});
+  }, [ready]);
+  if (!ready) return null;
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
     <SQLiteProvider databaseName="app.db" onInit={migrate}>
       <MindLockProvider>
         <ThemeProvider value={navTheme}>
-          <StatusBar style="auto" />
+          <StatusBar style="light" />
           <Startup />
-          <Stack screenOptions={{ headerShadowVisible: false }}>
+          <Stack screenOptions={stackScreenOptions}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="session/[id]" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
             <Stack.Screen name="session/add" options={{ presentation: 'modal', title: 'Add exercises' }} />

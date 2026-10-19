@@ -1,8 +1,9 @@
 import { Stack } from 'expo-router';
+import { stackScreenOptions } from '@/theme';
 
 export default function FoodLayout() {
   return (
-    <Stack screenOptions={{ headerShadowVisible: false }}>
+    <Stack screenOptions={stackScreenOptions}>
       <Stack.Screen name="index" options={{ title: 'Food', headerLargeTitle: true }} />
       <Stack.Screen name="add" options={{ title: 'Add food' }} />
       <Stack.Screen name="scan" options={{ title: 'Scan barcode', presentation: 'fullScreenModal' }} />

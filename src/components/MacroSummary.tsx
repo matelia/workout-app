@@ -4,7 +4,7 @@ import { T } from '@/components/ui';
 import type { Macros, Targets } from '@/db/repos/food';
 import { radius, space, useColors } from '@/theme';
 
-function Bar({ label, value, target, unit }: { label: string; value: number; target: number | null; unit: string }) {
+function Bar({ label, value, target, unit, color }: { label: string; value: number; target: number | null; unit: string; color?: string }) {
   const c = useColors();
   const pct = target ? Math.min(1, value / target) : 0;
   const over = !!target && value > target * 1.05;
@@ -19,7 +19,7 @@ function Bar({ label, value, target, unit }: { label: string; value: number; tar
       </View>
       {target ? (
         <View style={[styles.track, { backgroundColor: c.bg }]}>
-          <View style={[styles.fill, { width: `${pct * 100}%`, backgroundColor: over ? c.danger : c.accent }]} />
+          <View style={[styles.fill, { width: `${pct * 100}%`, backgroundColor: over ? c.danger : (color ?? c.accent) }]} />
         </View>
       ) : null}
     </View>
@@ -31,7 +31,7 @@ export function MacroSummary({ totals, targets, compact }: { totals: Macros; tar
   return (
     <View style={{ gap: space.sm }}>
       <Bar label="Calories" value={totals.kcal} target={targets.kcal} unit="kcal" />
-      <Bar label="Protein" value={totals.protein} target={targets.protein_g} unit="g" />
+      <Bar label="Protein" value={totals.protein} target={targets.protein_g} unit="g" color={useColors().accent2} />
       {!compact ? (
         <T variant="muted">
           Carbs {Math.round(totals.carbs)}

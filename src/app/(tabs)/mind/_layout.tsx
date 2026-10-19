@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { Button, T } from '@/components/ui';
 import { useMindLock } from '@/lib/mindLock';
-import { space, useColors } from '@/theme';
+import { space, useColors, stackScreenOptions } from '@/theme';
 
 export default function MindLayout() {
   const { unlocked, unlock } = useMindLock();
@@ -31,7 +31,7 @@ export default function MindLayout() {
   }
 
   return (
-    <Stack screenOptions={{ headerShadowVisible: false }}>
+    <Stack screenOptions={stackScreenOptions}>
       <Stack.Screen name="index" options={{ title: 'Mind', headerLargeTitle: true }} />
       <Stack.Screen name="checkin" options={{ presentation: 'fullScreenModal', headerShown: false }} />
       <Stack.Screen name="journal/index" options={{ title: 'Journal' }} />

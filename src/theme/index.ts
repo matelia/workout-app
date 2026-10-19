@@ -1,54 +1,65 @@
-import { DarkTheme, DefaultTheme, type Theme } from 'expo-router';
-import { useColorScheme } from 'react-native';
+import { DarkTheme, type Theme } from 'expo-router';
 
-const light = {
-  bg: '#F4F4F7',
-  card: '#FFFFFF',
-  cardPressed: '#ECECF1',
-  border: '#E1E1E7',
-  text: '#111114',
-  textMuted: '#6B6B76',
-  accent: '#3A6FF7',
-  accentText: '#FFFFFF',
-  success: '#1FA35C',
-  danger: '#E5484D',
+// "Steady" design: always dark, near-black surfaces, lime as the one action color,
+// coral as the second data color, condensed display type for titles and big numbers.
+
+const colors = {
+  bg: '#0E0E0E',
+  card: '#1B1B1B',
+  cardPressed: '#262626',
+  /** Raised surface inside a card (tracks, chips, secondary buttons). */
+  card2: '#262626',
+  border: '#2A2A2A',
+  text: '#FFFFFF',
+  textMuted: '#9A9A9A',
+  accent: '#C6F432',
+  accentText: '#111111',
+  /** Second data color (protein, secondary rings). */
+  accent2: '#FF5A36',
+  success: '#C6F432',
+  warning: '#FFB020',
+  danger: '#FF453A',
 };
 
-const dark: typeof light = {
-  bg: '#0B0B0F',
-  card: '#17171C',
-  cardPressed: '#222229',
-  border: '#2A2A32',
-  text: '#F2F2F5',
-  textMuted: '#9A9AA5',
-  accent: '#5B8CFF',
-  accentText: '#FFFFFF',
-  success: '#3CCB7F',
-  danger: '#FF6369',
-};
+export type Colors = typeof colors;
 
-export type Colors = typeof light;
-
+/** The app is dark-only; kept as a hook so screens don't care. */
 export function useColors(): Colors {
-  return useColorScheme() === 'dark' ? dark : light;
+  return colors;
 }
 
+export const fonts = {
+  /** Big numbers and screen titles. */
+  display: 'BarlowCondensed_800ExtraBold',
+  /** Section headings, labels. */
+  displayBold: 'BarlowCondensed_700Bold',
+  displaySemi: 'BarlowCondensed_600SemiBold',
+};
+
 export function useNavTheme(): Theme {
-  const scheme = useColorScheme();
-  const c = scheme === 'dark' ? dark : light;
-  const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
   return {
-    ...base,
+    ...DarkTheme,
     colors: {
-      ...base.colors,
-      primary: c.accent,
-      background: c.bg,
-      card: c.card,
-      text: c.text,
-      border: c.border,
+      ...DarkTheme.colors,
+      primary: colors.accent,
+      background: colors.bg,
+      card: colors.bg,
+      text: colors.text,
+      border: colors.border,
     },
   };
 }
 
+/** Shared header styling for every Stack. */
+export const stackScreenOptions = {
+  headerShadowVisible: false,
+  headerStyle: { backgroundColor: colors.bg },
+  headerTintColor: colors.accent,
+  headerTitleStyle: { fontFamily: fonts.displayBold, fontSize: 22, color: colors.text },
+  headerLargeTitleStyle: { fontFamily: fonts.display, fontSize: 40, color: colors.text },
+  headerBackButtonDisplayMode: 'minimal' as const,
+  contentStyle: { backgroundColor: colors.bg },
+};
+
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
-export const radius = { sm: 8, md: 12, lg: 16 } as const;
+export const radius = { sm: 10, md: 14, lg: 18 } as const;

@@ -10,7 +10,7 @@ export function NutritionCheck({ totals, targets, compact }: { totals: Macros; t
   const c = useColors();
   const checks = nutritionChecks(totals, targets);
   if (!checks.length) return null;
-  const colorFor = (s: CheckStatus) => (s === 'over' ? c.danger : s === 'near' ? '#E8A33D' : s === 'low' ? c.accent : c.success);
+  const colorFor = (s: CheckStatus) => (s === 'over' ? c.danger : s === 'near' ? c.warning : s === 'low' ? c.accent : c.success);
 
   if (compact) {
     const msgs = checkMessages(checks);

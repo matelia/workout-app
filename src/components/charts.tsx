@@ -132,7 +132,7 @@ export function BarChart({
               x2={width - PAD.right}
               y1={y(target)}
               y2={y(target)}
-              stroke={c.success}
+              stroke={c.accent2}
               strokeDasharray="4 4"
               strokeWidth={1.5}
             />

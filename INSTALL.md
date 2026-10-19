@@ -27,7 +27,7 @@ No Mac and no paid Apple Developer account. GitHub's free macOS runners build an
 
 1. On GitHub, go to **Actions → iOS build → Run workflow**.
 2. Wait about 15–25 minutes for the run to finish.
-3. Open the run and download the **Workout-ipa** artifact. It's a zip; unzip it to get `Workout.ipa`.
+3. Open the run and download the **Steady-ipa** artifact. It's a zip; unzip it to get `Steady.ipa`.
 4. Get the `.ipa` onto your iPhone, e.g. AirDrop it, or put it in iCloud Drive and open it in the Files app.
 
 ## 3. Install SideStore (one time)
@@ -42,9 +42,9 @@ Follow the official guide at https://docs.sidestore.io. In short:
 
 ## 4. Install the app
 
-1. Open SideStore → **My Apps → +** and pick `Workout.ipa`.
+1. Open SideStore → **My Apps → +** and pick `Steady.ipa`.
 2. When it asks about the app extensions or entitlements it can't use, choose to remove them. The app only needs local notifications.
-3. Open Workout and allow notifications, camera and Face ID when it asks.
+3. Open Steady and allow notifications, camera and Face ID when it asks.
 
 **Updating later:** build a new `.ipa` and install it over the old one in SideStore. Your data is kept because the bundle ID stays the same.
 

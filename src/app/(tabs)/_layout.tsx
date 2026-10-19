@@ -18,10 +18,10 @@ export default function TabsLayout() {
       screenOptions={{
         tabBarActiveTintColor: c.accent,
         tabBarInactiveTintColor: c.textMuted,
-        tabBarStyle: { backgroundColor: c.card, borderTopColor: c.border },
-        headerStyle: { backgroundColor: c.bg },
-        headerShadowVisible: false,
-        headerTintColor: c.text,
+        tabBarStyle: { backgroundColor: c.card, borderTopColor: c.border, borderTopWidth: 1 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
+        sceneStyle: { backgroundColor: c.bg },
+        headerShown: false,
       }}>
       <Tabs.Screen name="index" options={{ title: 'Today', tabBarIcon: icon('sun.max') }} />
       <Tabs.Screen name="food" options={{ title: 'Food', headerShown: false, tabBarIcon: icon('fork.knife') }} />

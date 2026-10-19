@@ -307,7 +307,7 @@ function SetRow({
         accessibilityLabel={done ? `Undo set ${index}` : `Complete set ${index}`}
         onPress={() => onToggle(repsVal(), num(weight))}
         style={[styles.check, styles.colCheck, { backgroundColor: done ? c.success : c.bg, borderColor: done ? c.success : c.border }]}>
-        <SymbolView name="checkmark" tintColor={done ? '#fff' : c.textMuted} size={18} weight="bold" />
+        <SymbolView name="checkmark" tintColor={done ? c.accentText : c.textMuted} size={18} weight="bold" />
       </Pressable>
     </View>
   );

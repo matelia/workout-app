@@ -12,7 +12,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { radius, space, useColors } from '@/theme';
+import { fonts, radius, space, useColors } from '@/theme';
 
 /** `overlay` (e.g. a <Fab />) floats above the scrolling content. */
 export function Screen({ children, scroll = true, overlay }: { children: ReactNode; scroll?: boolean; overlay?: ReactNode }) {
@@ -42,20 +42,22 @@ export function T({
   variant = 'body',
   style,
   ...rest
-}: TextProps & { variant?: 'title' | 'heading' | 'body' | 'muted' | 'label' }) {
+}: TextProps & { variant?: 'title' | 'heading' | 'body' | 'muted' | 'label' | 'number' }) {
   const c = useColors();
   const v = {
-    title: { fontSize: 28, fontWeight: '700' as const, color: c.text },
-    heading: { fontSize: 18, fontWeight: '600' as const, color: c.text },
+    title: { fontFamily: fonts.display, fontSize: 34, lineHeight: 38, color: c.text },
+    heading: { fontFamily: fonts.displayBold, fontSize: 22, lineHeight: 26, color: c.text },
     body: { fontSize: 16, color: c.text },
     muted: { fontSize: 14, color: c.textMuted },
     label: {
-      fontSize: 13,
-      fontWeight: '600' as const,
+      fontFamily: fonts.displayBold,
+      fontSize: 15,
       color: c.textMuted,
       textTransform: 'uppercase' as const,
-      letterSpacing: 0.5,
+      letterSpacing: 1,
     },
+    /** Big stat numbers. */
+    number: { fontFamily: fonts.display, fontSize: 44, lineHeight: 46, color: c.text },
   }[variant];
   return <Text style={[v, style]} {...rest} />;
 }
@@ -63,7 +65,7 @@ export function T({
 export function Card({ children, style }: { children: ReactNode; style?: ViewStyle }) {
   const c = useColors();
   return (
-    <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }, style]}>
+    <View style={[styles.card, { backgroundColor: c.card }, style]}>
       {children}
     </View>
   );
@@ -84,7 +86,7 @@ export function Row({
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
-        { backgroundColor: pressed && onPress ? c.cardPressed : c.card, borderColor: c.border },
+        { backgroundColor: pressed && onPress ? c.cardPressed : c.card },
         style,
       ]}>
       {children}
@@ -99,7 +101,7 @@ export function Button({
   ...rest
 }: PressableProps & { title: string; variant?: 'primary' | 'secondary' | 'danger'; style?: ViewStyle }) {
   const c = useColors();
-  const bg = variant === 'primary' ? c.accent : variant === 'danger' ? 'transparent' : c.card;
+  const bg = variant === 'primary' ? c.accent : variant === 'danger' ? 'transparent' : c.card2;
   const fg = variant === 'primary' ? c.accentText : variant === 'danger' ? c.danger : c.text;
   return (
     <Pressable
@@ -108,13 +110,15 @@ export function Button({
         styles.button,
         {
           backgroundColor: bg,
-          borderColor: variant === 'secondary' ? c.border : 'transparent',
           opacity: pressed || rest.disabled ? 0.6 : 1,
+          transform: [{ scale: pressed ? 0.98 : 1 }],
         },
         style,
       ]}
       {...rest}>
-      <Text style={{ color: fg, fontSize: 16, fontWeight: '600' }}>{title}</Text>
+      <Text style={{ color: fg, fontFamily: fonts.displayBold, fontSize: 19, letterSpacing: 0.6, textTransform: 'uppercase' }}>
+        {title}
+      </Text>
     </Pressable>
   );
 }
@@ -128,7 +132,7 @@ export function Field({ label, style, ...rest }: TextInputProps & { label?: stri
         placeholderTextColor={c.textMuted}
         style={[
           styles.input,
-          { backgroundColor: c.card, borderColor: c.border, color: c.text },
+          { backgroundColor: c.card, color: c.text },
           rest.multiline && { minHeight: 90, textAlignVertical: 'top' },
           style,
         ]}
@@ -154,11 +158,10 @@ export function Chip({
       style={[
         styles.chip,
         {
-          backgroundColor: selected ? c.accent : c.card,
-          borderColor: selected ? c.accent : c.border,
+          backgroundColor: selected ? c.accent : c.card2,
         },
       ]}>
-      <Text style={{ color: selected ? c.accentText : c.text, fontSize: 14, fontWeight: '500' }}>
+      <Text style={{ color: selected ? c.accentText : c.text, fontSize: 14, fontWeight: selected ? '700' : '500' }}>
         {label}
       </Text>
     </Pressable>
@@ -181,14 +184,12 @@ export function Empty({ title, hint }: { title: string; hint?: string }) {
 const styles = StyleSheet.create({
   screen: { padding: space.lg, gap: space.lg, flexGrow: 1 },
   card: {
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
     padding: space.lg,
     gap: space.sm,
   },
   row: {
     borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
     flexDirection: 'row',
@@ -196,25 +197,22 @@ const styles = StyleSheet.create({
     gap: space.md,
   },
   button: {
-    minHeight: 48,
+    minHeight: 50,
     borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: space.lg,
   },
   input: {
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.sm,
     paddingHorizontal: space.md,
     paddingVertical: space.md,
     fontSize: 16,
   },
   chip: {
     borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: space.md,
-    paddingVertical: 6,
+    paddingVertical: 7,
   },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   empty: { alignItems: 'center', gap: space.sm, paddingVertical: space.xl * 2 },

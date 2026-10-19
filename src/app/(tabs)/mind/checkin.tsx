@@ -23,7 +23,7 @@ import { formatDate, formatDuration, nowLocalIso, parseDate, toDateStr, todayStr
 import { deleteMedia, extOf, mediaUri, storeMedia } from '@/lib/media';
 import { radius, space, useColors } from '@/theme';
 
-const ACCENT = '#19B890';
+const ACCENT = '#C6F432'; // theme accent (lime); dark marks on top use #111
 const ENERGY = ['Drained', 'Low', 'Okay', 'Good', 'High'];
 
 export default function CheckInScreen() {

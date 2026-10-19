@@ -39,7 +39,7 @@ export function CareSlotRow({ slot, showName, onChange }: { slot: CareSlot; show
           <Pressable
             onPress={() => act(() => logCare(db, slot.item.id, slot.scheduled, false))}
             style={[styles.btn, { backgroundColor: c.success }]}>
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Done</Text>
+            <Text style={{ color: c.accentText, fontWeight: '700' }}>Done</Text>
           </Pressable>
         </>
       ) : (

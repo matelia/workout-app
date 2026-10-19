@@ -2,7 +2,7 @@
 # with your free Apple ID, so no Apple Developer account or secrets are needed.
 #
 # Run it: GitHub → Actions → "iOS build" → Run workflow (or push a tag like v1.0.0).
-# Download: the finished run's "Workout-ipa" artifact (a zip containing Workout.ipa).
+# Download: the finished run's "Steady-ipa" artifact (a zip containing Steady.ipa).
 
 name: iOS build
 
@@ -60,11 +60,11 @@ jobs:
           APP=$(ls -d build/Build/Products/Release-iphoneos/*.app | head -1)
           mkdir -p Payload
           cp -R "$APP" Payload/
-          zip -qry Workout.ipa Payload
-          ls -lh Workout.ipa
+          zip -qry Steady.ipa Payload
+          ls -lh Steady.ipa
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Workout-ipa
-          path: Workout.ipa
+          name: Steady-ipa
+          path: Steady.ipa
           retention-days: 30
