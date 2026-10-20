@@ -282,3 +282,8 @@
 - The bundle ID is unchanged (`com.matin.steady`), so updates install over the old app and keep its data.
 - Backups are now named "Tend backup …". Older "Steady backup" folders still restore (the database file inside is still `steady.db`).
 - The iOS build artifact is now **Tend-ipa** (`Tend.ipa`).
+
+## Laptop server setup (2026-10-20)
+- Server turns off model "thinking" (`OLLAMA_THINK=false`) and keeps the model loaded for 30 minutes (`OLLAMA_KEEP_ALIVE`), so CPU-only laptops answer much faster.
+- `start-hidden.vbs` starts the server with no window (for the Startup folder) and logs to `server.log`; `stop.bat` stops it.
+- README: recommends `qwen3.5:4b` for laptops without a GPU, and scopes the firewall rule to Tailscale addresses.

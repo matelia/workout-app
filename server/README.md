@@ -34,7 +34,7 @@ Everything here is free: Ollama, the model, Tailscale's personal plan, and the U
 5. **Allow port 8000 through Windows Firewall.** Run this once in an *administrator* terminal:
 
    ```bash
-   netsh advfirewall firewall add rule name="Snapshot server" dir=in action=allow protocol=TCP localport=8000
+   netsh advfirewall firewall add rule name="Tend server" dir=in action=allow protocol=TCP localport=8000 remoteip=100.64.0.0/10
    ```
 
 ## 2. Run it
@@ -43,14 +43,16 @@ Double-click `start.bat`, or run `.venv\Scripts\python -m uvicorn main:app --hos
 
 Check that it's up by opening http://localhost:8000/health in a browser on the laptop. It should say `"ok": true` and `"model_ready": true`. If you set a token, the browser shows "Bad or missing token" instead. That means the server is up.
 
-**Start it automatically:** open Task Scheduler → Create Basic Task → "When I log on" → Start a program → choose `start.bat`.
+**Start it automatically (no window):** put a shortcut to `start-hidden.vbs` in your Startup folder (Win+R → `shell:startup`). The target is `wscript.exe "<path>start-hidden.vbs"`. It logs to `server.log` in this folder. `stop.bat` stops it.
+
+**Which model:** on a laptop without a graphics card, `qwen3.5:4b` does both photos and coaching. A label takes about 90 s and a coach reply 20–40 s on an 11th-gen i7. `OLLAMA_THINK=false` (the default) keeps thinking models fast, and `OLLAMA_KEEP_ALIVE=30m` keeps the model loaded between requests.
 
 **Keep the laptop awake:** go to Settings → System → Power and set sleep to "Never" while plugged in.
 
 ## 3. Connect the phone
 
 1. Turn on Tailscale on the iPhone.
-2. In the app, go to **Food → ⚙︎ Settings → Snapshot server**:
+2. In the app, go to **Settings (gear on Today) → Home laptop**:
    - Address: `http://<laptop-name>:8000`, or `http://100.x.y.z:8000`
    - Shared token: the same value as `SNAPSHOT_TOKEN`
 3. Tap **Test connection**. It should say "Connected. Model: …".

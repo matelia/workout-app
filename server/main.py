@@ -32,6 +32,8 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5vl:7b")
 # The coach can reuse the vision model (one download, less RAM) or use a separate text model.
 OLLAMA_CHAT_MODEL = os.getenv("OLLAMA_CHAT_MODEL") or OLLAMA_MODEL
+OLLAMA_THINK = os.getenv("OLLAMA_THINK", "false").lower() in ("1", "true", "yes")
+OLLAMA_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "30m")
 USDA_API_KEY = os.getenv("USDA_API_KEY") or "DEMO_KEY"
 SNAPSHOT_TOKEN = os.getenv("SNAPSHOT_TOKEN", "")
 MAX_PHOTO_BYTES = 15 * 1024 * 1024
@@ -127,6 +129,10 @@ async def ollama_chat(
     payload: dict[str, Any] = {
         "model": model or OLLAMA_MODEL,
         "stream": False,
+        # Thinking models (e.g. qwen3.5) are far slower with it on, and it adds nothing to JSON extraction.
+        "think": OLLAMA_THINK,
+        # Keep the model in memory between requests so the next photo or question doesn't wait for a reload.
+        "keep_alive": OLLAMA_KEEP_ALIVE,
         "options": {"temperature": temperature},
         "messages": messages,
     }
