@@ -292,3 +292,9 @@
 - The laptop address in Settings can now be a **gist link**. The laptop's `tunnel.ps1` opens a free Cloudflare quick tunnel and keeps the gist updated with its address. The app caches the address, and when the laptop stops answering it re-reads the gist and retries automatically (at most once per 5 minutes after the first lookup). No VPN needed on the phone, so it doesn't clash with LocalDevVPN.
 - All server calls (snapshots, coach, recipes, health check) go through one helper that does this retry.
 - The tunnel is off until `ENABLE_TUNNEL=true` in the server's `.env`; `start-hidden.vbs` starts it at sign-in.
+
+## Slow laptop answers through the tunnel (2026-10-20)
+- Fixed "Server error 524": Cloudflare drops requests with no response after 100 s, and a plan or menu on a CPU-only laptop takes longer. The server now starts the response after 20 s and sends a space every 15 s until the real answer is ready; errors after that point go in the body as `_status`.
+- The server waits up to 15 minutes for Ollama (`OLLAMA_TIMEOUT`, requests queue on one CPU) and says "took too long" instead of "not reachable" on a timeout.
+- The app waits up to 15 minutes for the laptop, reads `_status` errors, and shows short messages instead of raw Cloudflare HTML.
+- Plan builder: clearer instructions (session length → number of exercises, each muscle twice a week, sets × reps by goal), 4–9 exercises per routine, routines named by focus, and a routine named after a weekday is scheduled on that day.

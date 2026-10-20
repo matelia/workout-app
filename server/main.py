@@ -15,6 +15,7 @@ Nutrition comes from USDA FoodData Central, per 100 g, and the app multiplies by
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -34,6 +35,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5vl:7b")
 OLLAMA_CHAT_MODEL = os.getenv("OLLAMA_CHAT_MODEL") or OLLAMA_MODEL
 OLLAMA_THINK = os.getenv("OLLAMA_THINK", "false").lower() in ("1", "true", "yes")
 OLLAMA_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "30m")
+OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "900"))
 USDA_API_KEY = os.getenv("USDA_API_KEY") or "DEMO_KEY"
 SNAPSHOT_TOKEN = os.getenv("SNAPSHOT_TOKEN", "")
 MAX_PHOTO_BYTES = 15 * 1024 * 1024
@@ -42,6 +44,69 @@ log = logging.getLogger("snapshot")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 app = FastAPI(title="Workout app snapshot server")
+
+# Cloudflare quick tunnels drop a request (HTTP 524) when no response has started within 100 s, and a CPU-only
+# laptop can take longer than that for a plan or a menu. So when a POST is still running after HEARTBEAT_AFTER
+# seconds, start a 200 response and send a space every HEARTBEAT_EVERY seconds (JSON ignores leading
+# whitespace), then the real body. The status is committed by then, so an error goes into the JSON as "_status".
+HEARTBEAT_AFTER = 20
+HEARTBEAT_EVERY = 15
+
+
+class KeepAliveMiddleware:
+    def __init__(self, inner: Any) -> None:
+        self.inner = inner
+
+    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
+        if scope["type"] != "http" or scope["method"] != "POST":
+            await self.inner(scope, receive, send)
+            return
+        start: dict[str, Any] = {}
+        chunks: list[bytes] = []
+        finished = asyncio.Event()
+
+        async def capture(message: dict[str, Any]) -> None:
+            if message["type"] == "http.response.start":
+                start.update(message)
+            elif message["type"] == "http.response.body":
+                chunks.append(message.get("body", b""))
+                if not message.get("more_body"):
+                    finished.set()
+
+        task = asyncio.create_task(self.inner(scope, receive, capture))
+
+        async def wait(seconds: float) -> None:
+            waiter = asyncio.create_task(finished.wait())
+            await asyncio.wait({waiter, task}, timeout=seconds, return_when=asyncio.FIRST_COMPLETED)
+            waiter.cancel()
+
+        await wait(HEARTBEAT_AFTER)
+        if finished.is_set():  # fast: pass the response through unchanged
+            await send(start)
+            await send({"type": "http.response.body", "body": b"".join(chunks)})
+            await asyncio.gather(task, return_exceptions=True)
+            return
+
+        await send({"type": "http.response.start", "status": 200, "headers": [(b"content-type", b"application/json")]})
+        while not finished.is_set() and not task.done():
+            await send({"type": "http.response.body", "body": b" ", "more_body": True})
+            await wait(HEARTBEAT_EVERY)
+        await asyncio.gather(task, return_exceptions=True)
+        body = b"".join(chunks)
+        status = start.get("status", 500) if finished.is_set() else 500
+        if status >= 400:
+            try:
+                parsed = json.loads(body)
+            except ValueError:
+                parsed = {"detail": body.decode(errors="replace")[:300] or "Server error"}
+            if not isinstance(parsed, dict):
+                parsed = {"detail": parsed}
+            parsed["_status"] = status
+            body = json.dumps(parsed).encode()
+        await send({"type": "http.response.body", "body": body})
+
+
+app.add_middleware(KeepAliveMiddleware)
 
 
 def check_token(x_token: str | None = Header(default=None)) -> None:
@@ -138,9 +203,12 @@ async def ollama_chat(
     }
     if schema is not None:
         payload["format"] = schema
-    async with httpx.AsyncClient(timeout=300) as client:
+    # Ollama runs one request at a time on a CPU, so a request may wait behind another; allow plenty of time.
+    async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
         try:
             r = await client.post(f"{OLLAMA_URL}/api/chat", json=payload)
+        except httpx.TimeoutException as e:
+            raise HTTPException(status_code=504, detail=f"The model took longer than {OLLAMA_TIMEOUT} s. Try again, or a smaller model.") from e
         except httpx.HTTPError as e:
             raise HTTPException(status_code=503, detail=f"Ollama not reachable at {OLLAMA_URL}: {e}") from e
     if r.status_code != 200:
@@ -492,6 +560,8 @@ PLAN_SCHEMA = {
                     "weekday": {"type": "integer", "minimum": 0, "maximum": 6},
                     "exercises": {
                         "type": "array",
+                        "minItems": 4,
+                        "maxItems": 9,
                         "items": {
                             "type": "object",
                             "properties": {"name": {"type": "string"}, "sets": {"type": "integer"}, "reps": {"type": "integer"}},
@@ -507,6 +577,9 @@ PLAN_SCHEMA = {
 }
 
 
+WEEKDAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+
+
 class PlanRequest(BaseModel):
     goals: str
     context: str = ""
@@ -517,8 +590,17 @@ class PlanRequest(BaseModel):
 async def plan(body: PlanRequest, _: None = Depends(check_token)) -> dict[str, Any]:
     prompt = (
         f"{COACH_SYSTEM}\n\nCONTEXT:\n{body.context[:8000]}\n\nGOALS AND PREFERENCES:\n{body.goals}\n\n"
-        "Design a weekly training plan. weekday: 0=Sunday ... 6=Saturday. Use ONLY exercise names from this list, "
-        "spelled exactly:\n" + "\n".join(body.exercises[:300]) + "\n\nsummary: 2-4 sentences explaining the plan. Reply with JSON only."
+        "Design a weekly training plan:\n"
+        "- One routine per training day, as many days as the goals say (default 4), with rest days between hard days. "
+        "weekday: 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday. "
+        "name: the focus (e.g. \"Upper A\", \"Legs & Core\"), not the day.\n"
+        "- Each routine fills the session length: about one exercise per 8-10 minutes (6-7 for 60 minutes), "
+        "compound lifts first, then accessories.\n"
+        "- Train every major muscle group about twice a week; an exercise may appear on more than one day.\n"
+        "- Sets and reps that fit the goal (muscle: 3-4 x 8-12; strength: 3-5 x 3-6 on the main lifts).\n"
+        "- Respect injuries and preferences in the goals.\n"
+        "Use ONLY exercise names from this list, spelled exactly:\n" + "\n".join(body.exercises[:300]) +
+        "\n\nsummary: 2-4 sentences explaining the plan. Reply with JSON only."
     )
     raw = await ollama_chat([{"role": "user", "content": prompt}], schema=PLAN_SCHEMA, model=OLLAMA_CHAT_MODEL, temperature=0.3)
     try:
@@ -533,8 +615,14 @@ async def plan(body: PlanRequest, _: None = Depends(check_token)) -> dict[str, A
             for e in r.get("exercises", [])
             if str(e.get("name", "")).lower() in allowed
         ]
-        if ex and 0 <= int(r.get("weekday", -1)) <= 6:
-            routines.append({"name": str(r["name"]).strip()[:40], "weekday": int(r["weekday"]), "exercises": ex})
+        name = str(r["name"]).strip()[:40]
+        weekday = int(r.get("weekday", -1))
+        # Small models sometimes name a routine "Monday" but number it as another day; trust the name.
+        named = [i for i, d in enumerate(WEEKDAY_NAMES) if d in name.lower()]
+        if len(named) == 1:
+            weekday = named[0]
+        if ex and 0 <= weekday <= 6:
+            routines.append({"name": name, "weekday": weekday, "exercises": ex})
     return {"summary": out.get("summary", ""), "routines": routines}
 
 

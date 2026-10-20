@@ -33,7 +33,7 @@ export async function answerMessage(db: SQLiteDatabase, msg: CoachMessage, notif
   if (msg.kind === 'plan') {
     const exercises = (await listExercises(db)).map((e) => e.name);
     const goals = `${goalsText(await getGoals(db))}\nRequest: ${msg.text}`;
-    const r = await serverPost<PlanProposal>(db, '/plan', { goals, context, exercises }, 300_000);
+    const r = await serverPost<PlanProposal>(db, '/plan', { goals, context, exercises });
     result = r.ok
       ? r.data.routines.length
         ? { ok: true, kind: 'plan', text: r.data.summary || 'Here’s a plan.', payload: r.data }

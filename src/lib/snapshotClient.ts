@@ -71,6 +71,10 @@ async function serverConfig(db: SQLiteDatabase) {
 
 class Unreachable extends Error {}
 
+// The laptop runs one model request at a time on its CPU, so a request can wait behind another one.
+// Matches the server's OLLAMA_TIMEOUT (900 s); the server keeps slow responses alive meanwhile.
+const LAPTOP_TIMEOUT_MS = 900_000;
+
 /**
  * Calls the laptop. If it doesn't answer and the address comes from a gist, re-reads the gist once and
  * retries at the new address (the tunnel address changes whenever the laptop restarts).
@@ -147,12 +151,8 @@ export async function processJob(db: SQLiteDatabase, job: SnapshotJob): Promise<
       return form;
     };
     // Vision models on a laptop can take a while.
-    const res = await serverFetch(db, `/${job.kind}`, (headers) => ({ method: 'POST', body: buildForm(), headers }), 180_000);
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Server error ${res.status}: ${text.slice(0, 200)}`);
-    }
-    const json = await res.json();
+    const res = await serverFetch(db, `/${job.kind}`, (headers) => ({ method: 'POST', body: buildForm(), headers }), LAPTOP_TIMEOUT_MS);
+    const json = await readJson(res);
     await setJobStatus(db, job.id, 'needs_review', { output: JSON.stringify(json) });
     return 'ok';
   } catch (e) {
@@ -237,8 +237,34 @@ export function startQueueRetries(db: SQLiteDatabase, everyMs = 120_000, extra?:
 
 export type ServerResult<T> = { ok: true; data: T } | { ok: false; unreachable: boolean; error: string };
 
+/**
+ * Reads a laptop response, turning every kind of failure into a short message: an HTTP error (including
+ * Cloudflare's HTML error pages) or an error the server put in the body as `_status` after it had already
+ * started a slow response.
+ */
+async function readJson(res: Response): Promise<unknown> {
+  const text = await res.text();
+  let json: unknown = null;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    // not JSON, e.g. a Cloudflare error page
+  }
+  const body = json as { _status?: number; detail?: unknown } | null;
+  const status = !res.ok ? res.status : (body?._status ?? 0);
+  if (status >= 400) {
+    const detail = typeof body?.detail === 'string' ? body.detail : null;
+    if (detail) throw new Error(detail);
+    if (status === 524 || status === 504) throw new Error('The laptop took too long to answer. Try again.');
+    if (status === 401) throw new Error('The laptop rejected the token (Settings → Home laptop).');
+    throw new Error(`Laptop error ${status}.`);
+  }
+  if (json === null) throw new Error('The laptop sent an answer the app couldn’t read.');
+  return json;
+}
+
 /** POST JSON to the laptop (recipe nutrition, coach chat, plan builder). */
-export async function serverPost<T>(db: SQLiteDatabase, path: string, body: unknown, timeoutMs = 180_000): Promise<ServerResult<T>> {
+export async function serverPost<T>(db: SQLiteDatabase, path: string, body: unknown, timeoutMs = LAPTOP_TIMEOUT_MS): Promise<ServerResult<T>> {
   let res: Response;
   try {
     res = await serverFetch(
@@ -250,8 +276,11 @@ export async function serverPost<T>(db: SQLiteDatabase, path: string, body: unkn
   } catch (e) {
     return { ok: false, unreachable: true, error: e instanceof Unreachable && e.message.startsWith('No laptop') ? e.message : 'Laptop not reachable.' };
   }
-  if (!res.ok) return { ok: false, unreachable: false, error: `Server error ${res.status}: ${(await res.text()).slice(0, 200)}` };
-  return { ok: true, data: (await res.json()) as T };
+  try {
+    return { ok: true, data: (await readJson(res)) as T };
+  } catch (e) {
+    return { ok: false, unreachable: false, error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /** Quick reachability check for offline banners. */
