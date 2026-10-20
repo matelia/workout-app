@@ -4,3 +4,4 @@ __pycache__/
 server.log
 tunnel.log
 cloudflared.log
+phone-setup.txt

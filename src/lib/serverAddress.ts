@@ -19,6 +19,7 @@ export function gistId(address: string | null): string | null {
 
 /** Reads `{"url": "https://…"}` or a bare https URL from the gist file. */
 export function parseAddress(text: string): string | null {
+  text = text.replace(/^﻿/, ''); // a BOM from Windows tools would break JSON.parse
   let url: unknown = text.trim();
   try {
     url = (JSON.parse(text) as { url?: unknown }).url;

@@ -22,12 +22,15 @@ function Set-EnvValue($name, $value) {
   $path = Join-Path $dir '.env'
   $lines = @(Get-Content $path -ErrorAction SilentlyContinue | Where-Object { $_ -notmatch "^$name=" })
   $lines += "$name=$value"
-  Set-Content -Path $path -Value $lines -Encoding utf8
+  [IO.File]::WriteAllLines($path, [string[]]$lines)
 }
 
 function Publish($url) {
+  # gh prints progress on stderr; in Windows PowerShell that would count as an error under 'Stop'.
+  $ErrorActionPreference = 'Continue'
   $file = Join-Path $env:TEMP 'tend-laptop.json'
-  @{ url = $url; updated = (Get-Date).ToString('o') } | ConvertTo-Json -Compress | Set-Content $file -Encoding utf8 -NoNewline
+  # WriteAllText writes UTF-8 without a BOM (Set-Content -Encoding utf8 adds one, which breaks JSON parsing).
+  [IO.File]::WriteAllText($file, (@{ url = $url; updated = (Get-Date).ToString('o') } | ConvertTo-Json -Compress))
   $id = Get-EnvValue 'TUNNEL_GIST_ID'
   if ($id) {
     & $gh gist edit $id --filename tend-laptop.json $file 2>&1 | Out-Null
@@ -36,7 +39,9 @@ function Publish($url) {
   }
   # Secret gist: unlisted, readable only by someone with its link. It holds only the address, never the token.
   $out = & $gh gist create --desc 'Tend laptop address (updated automatically)' $file 2>&1
-  $newId = ($out | Select-String -Pattern 'gist\.github\.com/(?:[^/]+/)?([0-9a-f]+)').Matches[0].Groups[1].Value
+  $match = $out | ForEach-Object { "$_" } | Select-String -Pattern 'gist\.github\.com/(?:[^/]+/)?([0-9a-f]+)' | Select-Object -First 1
+  if (-not $match) { Say "gist create failed: $($out -join ' ')"; return }
+  $newId = $match.Matches[0].Groups[1].Value
   Set-EnvValue 'TUNNEL_GIST_ID' $newId
   Say "created gist $newId and published $url"
 }
