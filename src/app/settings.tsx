@@ -9,6 +9,7 @@ import { getSetting, setSetting } from '@/db/repos/settings';
 import { createBackup, restoreBackup } from '@/lib/backup';
 import { FEATURES, type FeatureKey, useFeatures } from '@/lib/features';
 import { syncAllReminders } from '@/lib/notifications';
+import { clearResolvedServerUrl } from '@/lib/serverAddress';
 import { checkServer } from '@/lib/snapshotClient';
 import { space, useColors } from '@/theme';
 
@@ -89,7 +90,9 @@ export default function FoodSettings() {
     await setSetting(db, 'move_goal', String(num(moveGoal) ?? 500));
     await setSetting(db, 'overload_step', String(num(step) ?? 5));
     await setSetting(db, 'water_goal', String(num(water) ?? 100));
-    await setSetting(db, 'snapshot_server_url', serverUrl.trim().replace(/\/+$/, '') || null);
+    const address = serverUrl.trim().replace(/\/+$/, '') || null;
+    if (address !== (await getSetting(db, 'snapshot_server_url'))) await clearResolvedServerUrl(db);
+    await setSetting(db, 'snapshot_server_url', address);
     await setSetting(db, 'snapshot_server_token', serverToken.trim() || null);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -219,10 +222,11 @@ export default function FoodSettings() {
       <Card>
         <T variant="heading">Home laptop (snapshots and coach)</T>
         <T variant="muted">
-          Your laptop’s Tailscale address and port, e.g. http://laptop:8000 or http://100.x.y.z:8000. Snapshot photos and coach
-          questions go there. Mind data never does.
+          The gist link from your laptop (it keeps the laptop’s Cloudflare tunnel address up to date, so this works from
+          anywhere), or a direct address like http://192.168.1.20:8000. Snapshot photos and coach questions go there. Mind
+          data never does.
         </T>
-        <Field value={serverUrl} onChangeText={setServerUrl} placeholder="http://laptop:8000" autoCapitalize="none" autoCorrect={false} keyboardType="url" />
+        <Field value={serverUrl} onChangeText={setServerUrl} placeholder="https://gist.github.com/…" autoCapitalize="none" autoCorrect={false} keyboardType="url" />
         <Field value={serverToken} onChangeText={setServerToken} placeholder="Shared token (from server .env)" autoCapitalize="none" autoCorrect={false} secureTextEntry />
         <Button title="Test connection" variant="secondary" onPress={test} />
         {check.busy ? <ActivityIndicator /> : null}

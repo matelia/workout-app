@@ -287,3 +287,8 @@
 - Server turns off model "thinking" (`OLLAMA_THINK=false`) and keeps the model loaded for 30 minutes (`OLLAMA_KEEP_ALIVE`), so CPU-only laptops answer much faster.
 - `start-hidden.vbs` starts the server with no window (for the Startup folder) and logs to `server.log`; `stop.bat` stops it.
 - README: recommends `qwen3.5:4b` for laptops without a GPU, and scopes the firewall rule to Tailscale addresses.
+
+## Reach the laptop from anywhere (2026-10-20)
+- The laptop address in Settings can now be a **gist link**. The laptop's `tunnel.ps1` opens a free Cloudflare quick tunnel and keeps the gist updated with its address. The app caches the address, and when the laptop stops answering it re-reads the gist and retries automatically (at most once per 5 minutes after the first lookup). No VPN needed on the phone, so it doesn't clash with LocalDevVPN.
+- All server calls (snapshots, coach, recipes, health check) go through one helper that does this retry.
+- The tunnel is off until `ENABLE_TUNNEL=true` in the server's `.env`; `start-hidden.vbs` starts it at sign-in.

@@ -7,9 +7,11 @@ import { pantryKinds } from '@/db/repos/pantry';
 import { listPendingNutrition, setRecipeNutrition } from '@/db/repos/recipes';
 import { getSetting } from '@/db/repos/settings';
 import type { NutritionPerServing } from '@/lib/recipeImport';
+import { resolveServerUrl } from '@/lib/serverAddress';
 import { getJob, jobPhotos, listQueuedJobs, reviewRoute, setJobStatus, type SnapshotJob } from '@/db/repos/snapshots';
 
-// Talks to the FastAPI server on the home laptop (see server/README.md), reached over Tailscale.
+// Talks to the FastAPI server on the home laptop (see server/README.md), reached directly or through
+// a Cloudflare tunnel whose address the laptop publishes to a gist (see serverAddress.ts).
 // Only the photo is sent. Barcodes and saved meals never use this.
 
 export type LabelResult = {
@@ -62,9 +64,33 @@ export function photoUri(relative: string) {
 }
 
 async function serverConfig(db: SQLiteDatabase) {
-  const url = await getSetting(db, 'snapshot_server_url');
+  const { url } = await resolveServerUrl(db);
   const token = await getSetting(db, 'snapshot_server_token');
   return { url, headers: token ? { 'X-Token': token } : ({} as Record<string, string>) };
+}
+
+class Unreachable extends Error {}
+
+/**
+ * Calls the laptop. If it doesn't answer and the address comes from a gist, re-reads the gist once and
+ * retries at the new address (the tunnel address changes whenever the laptop restarts).
+ * `init` is a factory because a request body (FormData) can't be sent twice.
+ * Throws Unreachable when there's no address or nothing answers.
+ */
+async function serverFetch(db: SQLiteDatabase, path: string, init: (headers: Record<string, string>) => RequestInit, ms: number) {
+  const { url, headers } = await serverConfig(db);
+  if (!url) throw new Unreachable('No laptop address set (Settings → Home laptop).');
+  try {
+    return await fetchWithTimeout(`${url}${path}`, init(headers), ms);
+  } catch (e) {
+    const fresh = await resolveServerUrl(db, true);
+    if (!fresh.changed || !fresh.url) throw new Unreachable(e instanceof Error ? e.message : String(e));
+    try {
+      return await fetchWithTimeout(`${fresh.url}${path}`, init(headers), ms);
+    } catch (e2) {
+      throw new Unreachable(e2 instanceof Error ? e2.message : String(e2));
+    }
+  }
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit, ms: number) {
@@ -78,54 +104,50 @@ async function fetchWithTimeout(url: string, init: RequestInit, ms: number) {
 }
 
 export async function checkServer(db: SQLiteDatabase): Promise<{ ok: boolean; message: string }> {
-  const { url, headers } = await serverConfig(db);
-  if (!url) return { ok: false, message: 'Enter the server address first.' };
+  if (!(await getSetting(db, 'snapshot_server_url'))) return { ok: false, message: 'Enter the server address first.' };
   try {
-    const res = await fetchWithTimeout(`${url}/health`, { headers }, 6000);
+    const res = await serverFetch(db, '/health', (headers) => ({ headers }), 10_000);
     if (res.status === 401) return { ok: false, message: 'Reached the server, but the token is wrong.' };
     const json = await res.json();
     return json.ok
       ? { ok: true, message: `Connected. Model: ${json.model}${json.model_ready ? '' : ' (not downloaded yet!)'}` }
       : { ok: false, message: json.error ?? 'Server responded with an error.' };
   } catch {
-    return { ok: false, message: 'Can’t reach the laptop. Is it on, with Tailscale connected on both devices?' };
+    return { ok: false, message: 'Can’t reach the laptop. Is it on and awake, with the server running?' };
   }
 }
 
-class Unreachable extends Error {}
-
 /** Sends one job to the server. Unreachable → back to 'queued'; bad response → error kept for the user. */
 export async function processJob(db: SQLiteDatabase, job: SnapshotJob): Promise<'ok' | 'unreachable' | 'failed'> {
-  const { url, headers } = await serverConfig(db);
-  if (!url) return 'unreachable';
+  if (!(await getSetting(db, 'snapshot_server_url'))) return 'unreachable';
   await setJobStatus(db, job.id, 'processing');
   try {
-    const form = new FormData();
-    // React Native's FormData accepts { uri, name, type } file parts.
-    if (job.kind === 'workout') {
-      // Instagram import: caption + your library names, plus the thumbnail/screenshots if any.
-      const ctx = job.context ? (JSON.parse(job.context) as { caption?: string }) : {};
-      form.append('caption', ctx.caption ?? '');
-      form.append('library', JSON.stringify((await listExercises(db)).map((e) => e.name)));
-      jobPhotos(job)
-        .filter(Boolean)
-        .forEach((p, i) => form.append('photos', { uri: photoUri(p), name: `photo${i}.jpg`, type: 'image/jpeg' } as unknown as Blob));
-    } else if (job.kind === 'menu' || job.kind === 'recipe') {
-      jobPhotos(job).forEach((p, i) =>
-        form.append('photos', { uri: photoUri(p), name: `photo${i}.jpg`, type: 'image/jpeg' } as unknown as Blob),
-      );
-    } else {
-      form.append('photo', { uri: photoUri(job.photo_path), name: 'photo.jpg', type: 'image/jpeg' } as unknown as Blob);
-    }
-    // What you usually eat (e.g. "peanut butter"), so the model names foods the way your groceries are named.
-    if (job.kind === 'meal') form.append('hints', JSON.stringify(await pantryKinds(db)));
-    let res: Response;
-    try {
-      // Vision models on a laptop can take a while.
-      res = await fetchWithTimeout(`${url}/${job.kind}`, { method: 'POST', body: form, headers }, 180_000);
-    } catch {
-      throw new Unreachable();
-    }
+    const library = job.kind === 'workout' ? (await listExercises(db)).map((e) => e.name) : [];
+    const hints = job.kind === 'meal' ? await pantryKinds(db) : [];
+    const buildForm = () => {
+      const form = new FormData();
+      // React Native's FormData accepts { uri, name, type } file parts.
+      if (job.kind === 'workout') {
+        // Instagram import: caption + your library names, plus the thumbnail/screenshots if any.
+        const ctx = job.context ? (JSON.parse(job.context) as { caption?: string }) : {};
+        form.append('caption', ctx.caption ?? '');
+        form.append('library', JSON.stringify(library));
+        jobPhotos(job)
+          .filter(Boolean)
+          .forEach((p, i) => form.append('photos', { uri: photoUri(p), name: `photo${i}.jpg`, type: 'image/jpeg' } as unknown as Blob));
+      } else if (job.kind === 'menu' || job.kind === 'recipe') {
+        jobPhotos(job).forEach((p, i) =>
+          form.append('photos', { uri: photoUri(p), name: `photo${i}.jpg`, type: 'image/jpeg' } as unknown as Blob),
+        );
+      } else {
+        form.append('photo', { uri: photoUri(job.photo_path), name: 'photo.jpg', type: 'image/jpeg' } as unknown as Blob);
+      }
+      // What you usually eat (e.g. "peanut butter"), so the model names foods the way your groceries are named.
+      if (job.kind === 'meal') form.append('hints', JSON.stringify(hints));
+      return form;
+    };
+    // Vision models on a laptop can take a while.
+    const res = await serverFetch(db, `/${job.kind}`, (headers) => ({ method: 'POST', body: buildForm(), headers }), 180_000);
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`Server error ${res.status}: ${text.slice(0, 200)}`);
@@ -217,17 +239,16 @@ export type ServerResult<T> = { ok: true; data: T } | { ok: false; unreachable: 
 
 /** POST JSON to the laptop (recipe nutrition, coach chat, plan builder). */
 export async function serverPost<T>(db: SQLiteDatabase, path: string, body: unknown, timeoutMs = 180_000): Promise<ServerResult<T>> {
-  const { url, headers } = await serverConfig(db);
-  if (!url) return { ok: false, unreachable: true, error: 'No laptop address set (Settings → Home laptop).' };
   let res: Response;
   try {
-    res = await fetchWithTimeout(
-      `${url}${path}`,
-      { method: 'POST', body: JSON.stringify(body), headers: { ...headers, 'Content-Type': 'application/json' } },
+    res = await serverFetch(
+      db,
+      path,
+      (headers) => ({ method: 'POST', body: JSON.stringify(body), headers: { ...headers, 'Content-Type': 'application/json' } }),
       timeoutMs,
     );
-  } catch {
-    return { ok: false, unreachable: true, error: 'Laptop not reachable.' };
+  } catch (e) {
+    return { ok: false, unreachable: true, error: e instanceof Unreachable && e.message.startsWith('No laptop') ? e.message : 'Laptop not reachable.' };
   }
   if (!res.ok) return { ok: false, unreachable: false, error: `Server error ${res.status}: ${(await res.text()).slice(0, 200)}` };
   return { ok: true, data: (await res.json()) as T };
@@ -235,10 +256,8 @@ export async function serverPost<T>(db: SQLiteDatabase, path: string, body: unkn
 
 /** Quick reachability check for offline banners. */
 export async function isServerOnline(db: SQLiteDatabase): Promise<boolean> {
-  const { url, headers } = await serverConfig(db);
-  if (!url) return false;
   try {
-    const res = await fetchWithTimeout(`${url}/health`, { headers }, 4000);
+    const res = await serverFetch(db, '/health', (headers) => ({ headers }), 6000);
     return res.ok;
   } catch {
     return false;

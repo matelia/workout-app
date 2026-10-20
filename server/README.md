@@ -49,6 +49,16 @@ Check that it's up by opening http://localhost:8000/health in a browser on the l
 
 **Keep the laptop awake:** go to Settings → System → Power and set sleep to "Never" while plugged in.
 
+## Reach it from anywhere (Cloudflare tunnel, no VPN)
+
+`tunnel.ps1` opens a free Cloudflare quick tunnel (no Cloudflare account) and publishes its address to a **secret GitHub gist**. Quick-tunnel addresses change on every restart; the app reads the gist to follow them.
+
+1. Install cloudflared: `winget install Cloudflare.cloudflared`. The GitHub CLI must be signed in (`gh auth status`).
+2. In `.env`, set `ENABLE_TUNNEL=true`. `start-hidden.vbs` then starts the tunnel at sign-in (log: `tunnel.log`).
+3. The first run creates the gist and saves its ID as `TUNNEL_GIST_ID`. In the app, set the laptop address to the gist link, `https://gist.github.com/<you>/<id>`.
+
+The gist holds only the tunnel address, never the token. Anyone who learns the address still needs `SNAPSHOT_TOKEN`, so keep it long and private.
+
 ## 3. Connect the phone
 
 1. Turn on Tailscale on the iPhone.
