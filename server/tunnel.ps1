@@ -74,7 +74,8 @@ while ($true) {
     if (-not $url) { $fails = 2 }
     else {
       try {
-        Invoke-WebRequest "$url/health" -UseBasicParsing -TimeoutSec 20 | Out-Null
+        # The root path needs no token (it answers 404), so these checks don't fill server.log with rejections.
+        Invoke-WebRequest "$url/" -Method Head -UseBasicParsing -TimeoutSec 20 | Out-Null
         $fails = 0
       } catch {
         # An HTTP error (401 without the token) still proves the tunnel works; only a failed connection counts.

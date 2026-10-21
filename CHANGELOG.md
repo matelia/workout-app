@@ -305,3 +305,5 @@
 ## Snapshot queue no longer gets stuck (2026-10-21)
 - A send attempt stuck on a request that never settles (phone locked mid-upload, laptop asleep) blocked every later attempt, including "Process queued photos now", for up to 15 minutes. Bringing the app to the front or tapping "Process now" now starts a fresh attempt, and the stuck one stops at its next step.
 - The queue checks the laptop is reachable (following a moved tunnel address) before uploading photos, and "Process now" says so when it isn't.
+- Queued snapshots now show why they weren't sent ("Not sent yet: …") instead of only "Waiting for laptop", and a photo file missing on the phone is reported as such.
+- Server logs why a request was rejected (token missing or wrong, and the user agent; never the token). The tunnel watchdog checks the root path, so it no longer causes rejections.

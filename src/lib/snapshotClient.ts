@@ -126,6 +126,9 @@ export async function processJob(db: SQLiteDatabase, job: SnapshotJob): Promise<
   if (!(await getSetting(db, 'snapshot_server_url'))) return 'unreachable';
   await setJobStatus(db, job.id, 'processing');
   try {
+    // A missing photo makes the upload fail before it leaves the phone, which looks like "laptop offline".
+    const missing = jobPhotos(job).filter((p) => p && !new File(photoUri(p)).exists);
+    if (missing.length) throw new Error(`The photo file is missing on this phone (${missing.join(', ')}). Delete this and snap again.`);
     const library = job.kind === 'workout' ? (await listExercises(db)).map((e) => e.name) : [];
     const hints = job.kind === 'meal' ? await pantryKinds(db) : [];
     const buildForm = () => {
@@ -157,7 +160,8 @@ export async function processJob(db: SQLiteDatabase, job: SnapshotJob): Promise<
     return 'ok';
   } catch (e) {
     if (e instanceof Unreachable) {
-      await setJobStatus(db, job.id, 'queued');
+      // Keep the reason visible in the queue: "waiting" alone hides problems like an unreadable photo.
+      await setJobStatus(db, job.id, 'queued', { error: `Not sent yet: ${e.message}` });
       return 'unreachable';
     }
     await setJobStatus(db, job.id, 'queued', { error: e instanceof Error ? e.message : String(e) });

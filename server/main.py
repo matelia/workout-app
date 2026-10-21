@@ -109,8 +109,10 @@ class KeepAliveMiddleware:
 app.add_middleware(KeepAliveMiddleware)
 
 
-def check_token(x_token: str | None = Header(default=None)) -> None:
+def check_token(x_token: str | None = Header(default=None), user_agent: str | None = Header(default=None)) -> None:
     if SNAPSHOT_TOKEN and x_token != SNAPSHOT_TOKEN:
+        # Never log the token itself; its length is enough to tell "missing" from "old/mistyped".
+        log.warning("rejected: token %s (length %d), user agent %s", "missing" if not x_token else "wrong", len(x_token or ""), user_agent)
         raise HTTPException(status_code=401, detail="Bad or missing token")
 
 
