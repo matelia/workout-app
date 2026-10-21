@@ -165,17 +165,26 @@ export async function processJob(db: SQLiteDatabase, job: SnapshotJob): Promise<
   }
 }
 
+// One queue run at a time. A run can get stuck on a request that never settles (e.g. one in flight when
+// the phone locked or the laptop slept), so `force` (app back in front, "Process now") starts a new
+// generation: the stuck run stops at its next step instead of blocking every later try.
+let generation = 0;
 let running = false;
 
 /**
  * Processes queued jobs one by one; stops at the first sign the laptop is unreachable.
  * Jobs live in SQLite, so nothing is lost if the app is closed. They simply wait for the next try.
  */
-export async function processQueue(db: SQLiteDatabase) {
-  if (running) return;
+export async function processQueue(db: SQLiteDatabase, force = false) {
+  if (running && !force) return;
+  const gen = ++generation;
   running = true;
   try {
-    for (const job of await listQueuedJobs(db)) {
+    const jobs = await listQueuedJobs(db);
+    // A quick check (which also follows a moved tunnel address) before uploading photos.
+    if (jobs.length && !(await isServerOnline(db))) return;
+    for (const job of jobs) {
+      if (gen !== generation) return;
       const fresh = await getJob(db, job.id);
       if (!fresh || fresh.status === 'done' || fresh.status === 'needs_review') continue;
       const result = await processJob(db, fresh);
@@ -198,9 +207,9 @@ export async function processQueue(db: SQLiteDatabase) {
         }).catch(() => {});
       }
     }
-    await processPendingRecipes(db);
+    if (gen === generation) await processPendingRecipes(db);
   } finally {
-    running = false;
+    if (gen === generation) running = false;
   }
 }
 

@@ -98,7 +98,7 @@ function Startup() {
     processCoachQueue(db).catch(() => {});
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') {
-        processQueue(db).catch(() => {});
+        processQueue(db, true).catch(() => {});
         processCoachQueue(db).catch(() => {});
       }
     });

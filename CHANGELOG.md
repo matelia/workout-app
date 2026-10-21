@@ -301,3 +301,7 @@
 
 ## Tunnel watchdog (2026-10-21)
 - After the laptop sleeps, Cloudflare deletes the quick tunnel while `cloudflared` keeps retrying it ("Tunnel not found"), so the phone saw the laptop as offline. `tunnel.ps1` now checks the public address every 30 s and, after two failed connections, opens a new tunnel and publishes it to the gist. The app picks up the new address on its next try.
+
+## Snapshot queue no longer gets stuck (2026-10-21)
+- A send attempt stuck on a request that never settles (phone locked mid-upload, laptop asleep) blocked every later attempt, including "Process queued photos now", for up to 15 minutes. Bringing the app to the front or tapping "Process now" now starts a fresh attempt, and the stuck one stops at its next step.
+- The queue checks the laptop is reachable (following a moved tunnel address) before uploading photos, and "Process now" says so when it isn't.

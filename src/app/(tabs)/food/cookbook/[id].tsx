@@ -63,7 +63,7 @@ export default function RecipeDetail() {
               variant="secondary"
               onPress={async () => {
                 setBusy(true);
-                await processQueue(db);
+                await processQueue(db, true);
                 setBusy(false);
                 reload();
               }}

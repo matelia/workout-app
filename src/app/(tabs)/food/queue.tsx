@@ -8,7 +8,7 @@ import { Button, Empty, Row, Screen, T } from '@/components/ui';
 import { deleteJob, listOpenJobs, reviewRoute } from '@/db/repos/snapshots';
 import { useDbQuery } from '@/hooks/useDbQuery';
 import { formatDate } from '@/lib/dates';
-import { photoUri, processQueue } from '@/lib/snapshotClient';
+import { isServerOnline, photoUri, processQueue } from '@/lib/snapshotClient';
 import { radius, useColors } from '@/theme';
 
 const KIND_LABEL = { label: 'Label', meal: 'Meal', menu: 'Restaurant menu', recipe: 'Recipe', workout: 'Instagram workout' };
@@ -23,9 +23,10 @@ export default function SnapshotQueue() {
 
   async function retry() {
     setBusy(true);
-    await processQueue(db);
+    await processQueue(db, true);
     await reload();
     setBusy(false);
+    if (!(await isServerOnline(db))) Alert.alert('Laptop not reachable', 'Is it on and awake? The photos stay here and are sent when it’s back.');
   }
 
   return (
