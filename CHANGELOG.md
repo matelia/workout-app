@@ -298,3 +298,6 @@
 - The server waits up to 15 minutes for Ollama (`OLLAMA_TIMEOUT`, requests queue on one CPU) and says "took too long" instead of "not reachable" on a timeout.
 - The app waits up to 15 minutes for the laptop, reads `_status` errors, and shows short messages instead of raw Cloudflare HTML.
 - Plan builder: clearer instructions (session length → number of exercises, each muscle twice a week, sets × reps by goal), 4–9 exercises per routine, routines named by focus, and a routine named after a weekday is scheduled on that day.
+
+## Tunnel watchdog (2026-10-21)
+- After the laptop sleeps, Cloudflare deletes the quick tunnel while `cloudflared` keeps retrying it ("Tunnel not found"), so the phone saw the laptop as offline. `tunnel.ps1` now checks the public address every 30 s and, after two failed connections, opens a new tunnel and publishes it to the gist. The app picks up the new address on its next try.

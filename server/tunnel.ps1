@@ -65,7 +65,28 @@ while ($true) {
   } else {
     Say 'no tunnel address after 2 minutes'
   }
-  $proc.WaitForExit()
-  Say "cloudflared exited ($($proc.ExitCode)); restarting in 15 s"
-  Start-Sleep -Seconds 15
+  # Watchdog: after the laptop sleeps, Cloudflare deletes the quick tunnel but cloudflared keeps retrying it
+  # forever ("Tunnel not found"). So check the public address every 30 s; after 2 failures in a row,
+  # kill cloudflared and let the loop open a new tunnel (and publish its new address).
+  $fails = 0
+  while (-not $proc.HasExited) {
+    Start-Sleep -Seconds 30
+    if (-not $url) { $fails = 2 }
+    else {
+      try {
+        Invoke-WebRequest "$url/health" -UseBasicParsing -TimeoutSec 20 | Out-Null
+        $fails = 0
+      } catch {
+        # An HTTP error (401 without the token) still proves the tunnel works; only a failed connection counts.
+        if ($_.Exception.Response) { $fails = 0 } else { $fails++ }
+      }
+    }
+    if ($fails -ge 2) {
+      Say "tunnel $url not answering; opening a new one"
+      Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+      break
+    }
+  }
+  Say "cloudflared stopped; restarting in 5 s"
+  Start-Sleep -Seconds 5
 }
